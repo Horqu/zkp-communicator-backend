@@ -1,0 +1,61 @@
+# Logs and runtime files
+*.log
+*.out
+*.tmp
+*.pid
+
+# Compiled files
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go build artifacts
+bin/
+pkg/
+*.o
+*.a
+*.exe
+
+# Environment files
+.env
+.env.*
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+
+# Dependency files
+vendor/
+go.sum
+
+# Docker files
+.dockerignore
+docker-compose.override.yml
+
+# Kubernetes files
+*.yaml~
+*.yml~
+.kube/
+.kubectl/
+
+# Terraform
+.terraform/
+terraform.tfstate
+terraform.tfstate.backup
+*.tfvars
+
+# CI/CD and automation
+.github/workflows/.*
+*.bak
+
+# Test and coverage
+*.coverprofile
+*.test
+test-results/
+
+# Temporary files and directories
+tmp/
+.cache/
