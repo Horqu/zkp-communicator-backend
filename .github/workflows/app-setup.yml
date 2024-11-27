@@ -1,0 +1,33 @@
+name: App Setup
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/*
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  setup:
+    name: Start CentOS and Install Go
+    runs-on: self-hosted
+
+    steps:
+      - name: Run CentOS
+        uses: docker://centos:latest
+
+      - name: Install Go
+        run: |
+          yum update -y
+          yum install -y wget
+          wget https://go.dev/dl/go1.23.3.linux-amd64.tar.gz
+          tar -C /usr/local -xzf go1.23.3.linux-amd64.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+          source ~/.bashrc
+          go version
+
+      - name: Verify Go Installation
+        run: go version
