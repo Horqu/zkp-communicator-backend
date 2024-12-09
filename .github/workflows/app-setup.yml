@@ -12,22 +12,21 @@ on:
 
 jobs:
   setup:
-    name: Start CentOS and Install Go
-    runs-on: self-hosted
+    name: Start Ubuntu and Install Go
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Run CentOS
-        uses: docker://centos:latest
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       - name: Install Go
         run: |
-          yum update -y
-          yum install -y wget
+          sudo apt-get update -y
+          sudo apt-get install -y wget
           wget https://go.dev/dl/go1.23.3.linux-amd64.tar.gz
-          tar -C /usr/local -xzf go1.23.3.linux-amd64.tar.gz
+          sudo tar -C /usr/local -xzf go1.23.3.linux-amd64.tar.gz
           echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
           source ~/.bashrc
-          go version
 
       - name: Verify Go Installation
         run: go version
