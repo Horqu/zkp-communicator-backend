@@ -25,6 +25,7 @@ zkp-communicator-backend/
 │   ├── auth/                # Login/registration module  
 │   ├── messaging/           # Messaging handling module  
 │   └── zkp/                 # ZKP module  
+|   └── contacts/            # Contacts module
 ├── pkg/                     # Shared modules between services  
 │   ├── utils/               # Utility functions and tools  
 │   ├── logger/              # Logger for the entire project  
