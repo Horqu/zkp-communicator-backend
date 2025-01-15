@@ -32,7 +32,7 @@ func main() {
 		})
 	})
 
-	router.POST("/register", auth.RegisterHandler)
+	router.POST("/register", auth.RegisterHandler(conn))
 
 	router.POST("/login", auth.LoginHandler)
 
