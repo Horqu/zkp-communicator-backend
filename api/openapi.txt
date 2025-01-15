@@ -1,0 +1,16 @@
+curl -X POST http://localhost:8082/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "public_key": "some_public_key"
+  }'
+
+curl -X POST http://localhost:8083/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sender_id": 1,
+    "recipient_id": 2,
+    "content": "Hello!"
+  }'
+
+curl "http://localhost:8083/messages?user1=1&user2=2"

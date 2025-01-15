@@ -1,0 +1,120 @@
+openapi: 3.0.0
+info:
+  title: ZKP APP API
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8082
+paths:
+  /register:
+    post:
+      summary: Register a new user
+      description: Creates a new user with a username and public key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  example: alice
+                public_key:
+                  type: string
+                  example: some_public_key
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: registered
+                  user_id:
+                    type: integer
+        '400':
+          description: Invalid request
+        '409':
+          description: User already exists
+
+---
+servers:
+  - url: http://localhost:8083
+paths:
+  /messages:
+    post:
+      summary: Send a message
+      description: Sends a message from one user to another.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sender_id:
+                  type: integer
+                  example: 1
+                recipient_id:
+                  type: integer
+                  example: 2
+                content:
+                  type: string
+                  example: Hello!
+      responses:
+        '200':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: message_sent
+        '400':
+          description: Invalid request
+
+    get:
+      summary: Get messages between two users
+      description: Returns all messages exchanged between user1 and user2.
+      parameters:
+        - in: query
+          name: user1
+          schema:
+            type: integer
+          required: true
+        - in: query
+          name: user2
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        sender_id:
+                          type: integer
+                        recipient_id:
+                          type: integer
+                        content:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+        '400':
+          description: Missing or invalid user IDs
