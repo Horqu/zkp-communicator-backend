@@ -15,6 +15,7 @@ type User struct {
 type Session struct {
 	ID        uint      `gorm:"primaryKey;column:session_id"`
 	UserID    uint      `gorm:"column:user_id;not null"`
+	Token     string    `gorm:"column:token;not null;uniqueIndex"`
 	ExpiresAt time.Time `gorm:"column:expires_at;not null"`
 	CreatedAt time.Time `gorm:"column:created_at;default:CURRENT_TIMESTAMP"`
 }

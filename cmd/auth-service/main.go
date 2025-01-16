@@ -34,9 +34,9 @@ func main() {
 
 	router.POST("/register", auth.RegisterHandler(conn))
 
-	router.POST("/login", auth.LoginHandler)
+	router.POST("/login", auth.LoginHandler(conn))
 
-	router.POST("/logout", auth.LogoutHandler)
+	router.POST("/logout", auth.LogoutHandler(conn))
 
 	router.Run(":8082")
 }
