@@ -33,6 +33,7 @@ build:
 	go get github.com/stretchr/testify
 	go get gorm.io/gorm
 	go get gorm.io/driver/postgres
+	go get github.com/google/uuid
 	go build -o bin/api-gateway cmd/api-gateway/main.go
 	go build -o bin/zkp-service cmd/zkp-service/main.go
 	go build -o bin/auth-service cmd/auth-service/main.go
