@@ -38,6 +38,8 @@ build:
 
 test:
 	cd internal/encryption && go test -mod=vendor
+	cd ../..
+	cd internal/zkp && go test -mod=vendor
 
 db-build:
 	@echo "Building Docker image for PostgreSQL..."
