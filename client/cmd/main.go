@@ -14,7 +14,7 @@ import (
 	"client/views"
 )
 
-var currentView internal.AppView = internal.ViewMain
+var currentView internal.AppView = internal.ViewLogged
 
 func main() {
 	go func() {
@@ -42,12 +42,15 @@ func loop(w *app.Window) error {
 
 			switch currentView {
 			case internal.ViewMain:
-				// 1. Widok główny
 				views.MainResolver(gtx, th, &currentView)
 			case internal.ViewResolver:
-				// 2. Drugi widok (klucz prywatny + przycisk "Resolve")
 				views.LayoutResolver(gtx, th, &currentView)
-
+			case internal.ViewLoading:
+				views.LayoutLoading(gtx, th, &currentView)
+			case internal.ViewError:
+				views.LayoutError(gtx, th, &currentView)
+			case internal.ViewLogged:
+				views.LayoutLogged(gtx, th, &currentView)
 			}
 
 			e.Frame(gtx.Ops)
