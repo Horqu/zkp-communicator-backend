@@ -2,7 +2,10 @@ module client
 
 go 1.23.3
 
-require gioui.org v0.8.0
+require (
+	gioui.org v0.8.0
+	github.com/gorilla/websocket v1.5.3
+)
 
 require (
 	gioui.org/shader v1.0.8 // indirect

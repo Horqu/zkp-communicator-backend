@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net/url"
 	"os"
 
 	"gioui.org/app"
@@ -9,15 +10,24 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/widget/material"
+	"github.com/gorilla/websocket"
 
 	"client/internal"
 	"client/views"
 )
 
-var currentView internal.AppView = internal.ViewMain
+var (
+	wsConn      *websocket.Conn
+	currentView internal.AppView = internal.ViewResolver
+)
 
 func main() {
 	go func() {
+
+		if err := connectToWebSocket("ws://localhost:8080/ws"); err != nil {
+			log.Println("WebSocket connection error:", err)
+		}
+
 		w := new(app.Window)
 		if err := loop(w); err != nil {
 			log.Fatal(err)
@@ -25,6 +35,23 @@ func main() {
 		os.Exit(0)
 	}()
 	app.Main()
+}
+
+func connectToWebSocket(wsURL string) error {
+	u, err := url.Parse(wsURL)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Connecting to", u.String())
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	wsConn = c
+	log.Println("WebSocket connected.")
+	return nil
 }
 
 func loop(w *app.Window) error {
