@@ -1,54 +1,36 @@
 package views
 
 import (
-	"log"
-
 	"client/internal"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
 
 var (
-	loginEditor        = new(widget.Editor)
-	verificationOption = new(widget.Enum)
-	sendButton         = new(widget.Clickable)
+	goToLoginButton    = new(widget.Clickable)
+	goToRegisterButton = new(widget.Clickable)
 )
 
-func MainResolver(gtx layout.Context, th *material.Theme, currentView *internal.AppView) layout.Dimensions {
-	layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+func LayoutMain(gtx layout.Context, th *material.Theme, currentView *internal.AppView) layout.Dimensions {
+	return layout.Flex{Axis: layout.Vertical, Spacing: layout.SpaceAround}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			edit := material.Editor(th, loginEditor, "Enter login")
-			return edit.Layout(gtx)
+			btn := material.Button(th, goToLoginButton, "Login")
+			btn.TextSize = unit.Sp(16)
+			if goToLoginButton.Clicked(gtx) {
+				*currentView = internal.ViewLogin
+			}
+			return btn.Layout(gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodA", "Method A")
-					return rb.Layout(gtx)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodB", "Method B")
-					return rb.Layout(gtx)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodC", "Method C")
-					return rb.Layout(gtx)
-				}),
-			)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			btn := material.Button(th, sendButton, "Send")
-			if sendButton.Clicked(gtx) {
-				// Przykładowa logika wysyłania
-				login := loginEditor.Text()
-				method := verificationOption.Value
-				log.Printf("Wysyłam dane: login=%s, method=%s\n", login, method)
-				*currentView = internal.ViewResolver
+			btn := material.Button(th, goToRegisterButton, "Register")
+			btn.TextSize = unit.Sp(16)
+			if goToRegisterButton.Clicked(gtx) {
+				*currentView = internal.ViewRegister
 			}
 			return btn.Layout(gtx)
 		}),
 	)
-	return layout.Dimensions{}
 }
