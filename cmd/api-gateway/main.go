@@ -6,23 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	// "github.com/Horqu/zkp-communicator-backend/internal/auth"
-
-	// "github.com/Horqu/zkp-communicator-backend/internal/messaging"
-	// "github.com/Horqu/zkp-communicator-backend/internal/zkp"
+	"github.com/Horqu/zkp-communicator-backend/cmd/internal"
+	wsresponses "github.com/Horqu/zkp-communicator-backend/cmd/ws-responses"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
-
-type Message struct {
-	Command string `json:"command"`
-	Data    string `json:"data"`
-}
-
-type Response struct {
-	Command string `json:"command"`
-	Data    string `json:"data"`
-}
 
 var (
 	upgrader = websocket.Upgrader{
@@ -48,18 +36,21 @@ func wsHandler(c *gin.Context) {
 		if err != nil {
 			return
 		}
-		var message Message
+		var message internal.Message
 		if err := json.Unmarshal(msg, &message); err != nil {
 			conn.WriteMessage(websocket.TextMessage, []byte("Invalid message format"))
 			continue
 		}
 
 		switch message.Command {
+		case internal.CommandLoginButtom:
+			resp := wsresponses.ResponseLoginPage()
+			sendJSON(conn, resp)
 		case "login":
 			// Generujemy public key i challenge
 			publicKey = "public_key_for_" + message.Data
 			challenge := "solve_this_challenge"
-			resp := Response{
+			resp := internal.Response{
 				Command: "challenge",
 				Data:    fmt.Sprintf("%s|%s", publicKey, challenge),
 			}
@@ -72,7 +63,7 @@ func wsHandler(c *gin.Context) {
 				// Ustawiamy wygaśnięcie np. za 2 minuty
 				sessions[authToken] = time.Now().Add(2 * time.Minute)
 
-				resp := Response{Command: "auth", Data: authToken}
+				resp := internal.Response{Command: "auth", Data: authToken}
 				sendJSON(conn, resp)
 			} else {
 				conn.WriteMessage(websocket.TextMessage, []byte("Invalid solution"))
@@ -88,7 +79,7 @@ func wsHandler(c *gin.Context) {
 			// Odświeżamy ważność tokenu
 			sessions[message.Data] = time.Now().Add(2 * time.Minute)
 
-			resp := Response{Command: "pong", Data: "token_extended"}
+			resp := internal.Response{Command: "pong", Data: "token_extended"}
 			sendJSON(conn, resp)
 
 		default:
@@ -97,7 +88,7 @@ func wsHandler(c *gin.Context) {
 	}
 }
 
-func sendJSON(conn *websocket.Conn, resp Response) {
+func sendJSON(conn *websocket.Conn, resp internal.Response) {
 	data, _ := json.Marshal(resp)
 	conn.WriteMessage(websocket.TextMessage, data)
 }
