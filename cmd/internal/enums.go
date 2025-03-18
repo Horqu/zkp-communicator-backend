@@ -4,17 +4,17 @@ type MessageCommand string
 type ResponseCommand string
 
 const (
-	CommandLoginButtom    MessageCommand = "login_buttom"
-	CommandLogin          MessageCommand = "login"
-	CommandRegisterButtom MessageCommand = "register_buttom"
-	CommandRegister       MessageCommand = "register"
-	CommandSolve          MessageCommand = "solve"
-	CommandSelectChat     MessageCommand = "select_chat"
-	CommandAddFriend      MessageCommand = "add_friend"
-	CommandRemoveFriend   MessageCommand = "remove_friend"
-	CommandSendMessage    MessageCommand = "send_message"
-	CommandRefresh        MessageCommand = "refresh"
-	CommandLogout         MessageCommand = "logout"
+	MessageLoginButtom    MessageCommand = "login_buttom"
+	MessageLogin          MessageCommand = "login"
+	MessageRegisterButtom MessageCommand = "register_buttom"
+	MessageRegister       MessageCommand = "register"
+	MessageSolve          MessageCommand = "solve"
+	MessageSelectChat     MessageCommand = "select_chat"
+	MessageAddFriend      MessageCommand = "add_friend"
+	MessageRemoveFriend   MessageCommand = "remove_friend"
+	MessageSendMessage    MessageCommand = "send_message"
+	MessageRefresh        MessageCommand = "refresh"
+	MessageLogout         MessageCommand = "logout"
 )
 
 const (

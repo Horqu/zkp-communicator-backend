@@ -43,7 +43,7 @@ func wsHandler(c *gin.Context) {
 		}
 
 		switch message.Command {
-		case internal.CommandLoginButtom:
+		case internal.MessageLoginButtom:
 			resp := wsresponses.ResponseLoginPage()
 			sendJSON(conn, resp)
 		case "login":

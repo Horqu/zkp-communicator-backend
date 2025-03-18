@@ -82,6 +82,7 @@ func Schnorr_proof() {
 
 	// Generowanie klucza prywatnego x
 	x, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
+	fmt.Println("Klucz prywatny x:", x)
 	if err != nil {
 		panic(err)
 	}
@@ -89,6 +90,7 @@ func Schnorr_proof() {
 	// Obliczenie klucza publicznego y = g^x
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
+	fmt.Println("Klucz publiczny y:", y.String())
 
 	// Wygenerowanie losowej wartości r
 	r, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
