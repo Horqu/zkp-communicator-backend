@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"time"
 
 	"gioui.org/app"
 	"gioui.org/font/gofont"
@@ -18,7 +19,7 @@ import (
 
 var (
 	wsConn      *websocket.Conn
-	currentView internal.AppView = internal.ViewResolver
+	currentView internal.AppView = internal.ViewMain
 )
 
 func main() {
@@ -51,6 +52,16 @@ func connectToWebSocket(wsURL string) error {
 
 	wsConn = c
 	log.Println("WebSocket connected.")
+
+	// Ustaw timer na 30 minut
+	go func() {
+		select {
+		case <-time.After(30 * time.Minute):
+			log.Println("WebSocket connection timeout reached. Closing connection.")
+			wsConn.Close()
+		}
+	}()
+
 	return nil
 }
 

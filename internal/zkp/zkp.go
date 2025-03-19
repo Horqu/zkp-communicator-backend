@@ -1,17 +1,20 @@
 package zkp
 
 import (
+	"encoding/hex"
+	"io"
 	"math/big"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 )
 
 // GenerateProofHandler generates ZKP proof
@@ -39,11 +42,15 @@ func VerifyProofHandler(c *gin.Context) {
 func Gnark_crypto_main() {
 	// Generator punktu na krzywej BN254
 	var g bn254.G1Affine
-	g.X.SetString("11")  // Wartość generatora X
-	g.Y.SetString("222") // Wartość generatora Y
+	g.X.SetString("1") // Wartość generatora X
+	g.Y.SetString("2") // Wartość generatora Y
 
+	if !g.IsOnCurve() {
+		panic("Punkt nie należy do krzywej")
+	}
 	// Wygenerowanie sekretnego klucza x
-	x, err := rand.Int(rand.Reader, fr.Modulus())
+	// x, err := rand.Int(rand.Reader, fr.Modulus())
+	x, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
 	if err != nil {
 		panic(err)
 	}
@@ -125,4 +132,102 @@ func Schnorr_proof() {
 	} else {
 		fmt.Println("Dowód Schnorra niepoprawny: klient nie zna klucza.")
 	}
+}
+
+// encryptionDecryptionTest pokazuje przykład szyfrowania i deszyfrowania tekstu
+func encryption_decryption_test() {
+	// Generator na krzywej BN254
+	var g bn254.G1Affine
+	g.X.SetString("1")
+	g.Y.SetString("2")
+
+	// Klucz prywatny odbiorcy (x)
+	x := new(big.Int)
+	x.SetString("12065182636985977436074843367923784964065411516963092648656448500555354703849", 10)
+
+	// Klucz publiczny odbiorcy (y = g^x)
+	var y bn254.G1Affine
+	y.ScalarMultiplication(&g, x)
+
+	fmt.Println("Publiczny klucz y:", y.String())
+
+	// Dowolny tekst do zaszyfrowania
+	plaintext := "To jest tajna wiadomość."
+
+	// Szyfrowanie (zwraca punkt C1 oraz zaszyfrowaną treść)
+	C1, cipherBytes := encryptText(plaintext, &g, &y)
+
+	// Wyświetlamy efekt szyfrowania
+	fmt.Println("C1 (punkt na krzywej):", C1)
+	fmt.Println("Zaszyfrowana wiadomość (AES):", hex.EncodeToString(cipherBytes))
+
+	// Odszyfrowanie
+	decryptedText := decryptText(C1, cipherBytes, x)
+	fmt.Println("Odszyfrowana wiadomość:", decryptedText)
+}
+
+// encryptText – szyfruje tekst przy pomocy klucza publicznego y
+// Zwraca:
+//  1. C1 = g^k (bn254.G1Affine) – punkt pomocniczy
+//  2. zaszyfrowany tekst ([]byte), zaszyfrowany AES-em
+func encryptText(plaintext string, g, y *bn254.G1Affine) (bn254.G1Affine, []byte) {
+	// 1. Wygeneruj losową wartość k
+	k, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
+	if err != nil {
+		panic(err)
+	}
+
+	// 2. Oblicz C1 = g^k
+	var C1 bn254.G1Affine
+	C1.ScalarMultiplication(g, k)
+
+	// 3. Oblicz punkt shared = y^k
+	var shared bn254.G1Affine
+	shared.ScalarMultiplication(y, k)
+
+	// 4. Z punktu shared twórz klucz symetryczny (np. AES) przez zhashowanie
+	//    Marshal() serializuje punkt do bajtów; SHA-256 daje 32-bajtowy klucz
+	key := sha256.Sum256(shared.Marshal())
+
+	// 5. Szyfruj plaintext algorytmem AES (CFB szyfruje strumieniowo)
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		panic(err)
+	}
+	cipherBytes := make([]byte, aes.BlockSize+len(plaintext))
+	iv := cipherBytes[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		panic(err)
+	}
+
+	stream := cipher.NewCFBEncrypter(block, iv)
+	stream.XORKeyStream(cipherBytes[aes.BlockSize:], []byte(plaintext))
+
+	return C1, cipherBytes
+}
+
+// decryptText – deszyfruje tekst przy pomocy klucza prywatnego x
+// 1) Odtwarza ten sam klucz symetryczny z C1^x
+// 2) Deszyfruje za pomocą AES
+func decryptText(C1 bn254.G1Affine, cipherBytes []byte, x *big.Int) string {
+	// 1. Oblicz punkt shared = C1^x
+	var shared bn254.G1Affine
+	shared.ScalarMultiplication(&C1, x)
+
+	// 2. Hashujemy punkt shared, by uzyskać klucz AES
+	key := sha256.Sum256(shared.Marshal())
+
+	// 3. Deszyfrujemy dane
+	block, err := aes.NewCipher(key[:])
+	if err != nil {
+		panic(err)
+	}
+
+	iv := cipherBytes[:aes.BlockSize]
+	msg := cipherBytes[aes.BlockSize:]
+
+	stream := cipher.NewCFBDecrypter(block, iv)
+	stream.XORKeyStream(msg, msg)
+
+	return string(msg)
 }

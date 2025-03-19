@@ -9,6 +9,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 
+	"client/encryption"
 	"client/internal"
 )
 
@@ -35,8 +36,12 @@ func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *interna
 			// Przycisk "Generate keys"
 			btn := material.Button(th, generateKeysButton, "Generate keys")
 			if generateKeysButton.Clicked(gtx) {
-				privateKeyEditor.SetText("PRIVATE_KEY_EXAMPLE")
-				publicKeyEditor.SetText("PUBLIC_KEY_EXAMPLE")
+				privateKey := encryption.GeneratePrivateKey()
+				publicKey := encryption.GeneratePublicKey(privateKey)
+				publicKeyString := encryption.PublicKeyToString(publicKey)
+
+				privateKeyEditor.SetText(privateKey.String())
+				publicKeyEditor.SetText(publicKeyString)
 			}
 			return btn.Layout(gtx)
 		}),
