@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	db "github.com/Horqu/zkp-communicator-backend/cmd/database"
+	"github.com/Horqu/zkp-communicator-backend/cmd/database/queries"
 	"github.com/Horqu/zkp-communicator-backend/cmd/internal"
 	wsresponses "github.com/Horqu/zkp-communicator-backend/cmd/ws-responses"
 	"github.com/gin-gonic/gin"
@@ -46,6 +48,27 @@ func wsHandler(c *gin.Context) {
 		case internal.MessageLoginButtom:
 			resp := wsresponses.ResponseLoginPage()
 			sendJSON(conn, resp)
+		case internal.MessageRegister:
+			var dataMap map[string]string
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
+			}
+
+			username := dataMap["username"]
+			publicKey := dataMap["publicKey"]
+			fmt.Printf("Registering user: username=%s, publicKey=%s\n", username, publicKey)
+
+			err = queries.AddUser(db.GetDBInstance(), username, publicKey)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to register user"))
+				return
+			}
+
+			resp := wsresponses.ResponseRegisterSuccess()
+			sendJSON(conn, resp)
+
 		case "login":
 			// Generujemy public key i challenge
 			publicKey = "public_key_for_" + message.Data
@@ -94,6 +117,8 @@ func sendJSON(conn *websocket.Conn, resp internal.Response) {
 }
 
 func main() {
+	db.GetDBInstance()
+
 	router := gin.Default()
 
 	router.GET("/ws", wsHandler)

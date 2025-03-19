@@ -7,7 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func AddMessage(db *gorm.DB, usernameSender, usernameRecipient, contentForSender, contentForRecipient string) error {
+func AddMessage(db *gorm.DB, usernameSender, usernameRecipient, C1ForSender, contentForSender, C1ForRecipient, contentForRecipient string) error {
 	var sender models.User
 	if err := db.Where("username = ?", usernameSender).First(&sender).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -28,6 +28,7 @@ func AddMessage(db *gorm.DB, usernameSender, usernameRecipient, contentForSender
 		ReaderID:    sender.ID,
 		SenderID:    sender.ID,
 		RecipientID: recipient.ID,
+		C1:          C1ForSender,
 		Content:     contentForSender,
 	}
 
@@ -35,6 +36,7 @@ func AddMessage(db *gorm.DB, usernameSender, usernameRecipient, contentForSender
 		ReaderID:    recipient.ID,
 		SenderID:    sender.ID,
 		RecipientID: recipient.ID,
+		C1:          C1ForRecipient,
 		Content:     contentForRecipient,
 	}
 

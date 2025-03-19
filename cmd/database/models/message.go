@@ -12,6 +12,7 @@ type Message struct {
 	Sender      User      `gorm:"foreignKey:SenderID;references:ID"`
 	RecipientID uint      `gorm:"not null"`
 	Recipient   User      `gorm:"foreignKey:RecipientID;references:ID"`
+	C1          string    `gorm:"not null"`
 	Content     string    `gorm:"not null"`
 	CreatedAt   time.Time `gorm:"default:CURRENT_TIMESTAMP"`
 }

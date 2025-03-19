@@ -8,6 +8,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/gorilla/websocket"
 
 	"client/encryption"
 	"client/internal"
@@ -30,7 +31,7 @@ var (
 )
 
 // LayoutRegister wyświetla przycisk do generowania kluczy, pokazuje klucze prywatny/publiczny i formularz rejestracji
-func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *internal.AppView) layout.Dimensions {
+func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *internal.AppView, wsConn *websocket.Conn) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Przycisk "Generate keys"
@@ -102,6 +103,20 @@ func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *interna
 				u := usernameEditor.Text()
 				pk := pubKeyEditor.Text()
 				fmt.Printf("Register user=%s with publicKey=%s\n", u, pk)
+				if wsConn != nil {
+					msg := internal.Message{
+						Command: internal.MessageRegister,
+						Data:    fmt.Sprintf(`{"username":"%s","publicKey":"%s"}`, u, pk),
+					}
+					err := wsConn.WriteJSON(msg)
+					if err != nil {
+						fmt.Printf("Failed to send registration message: %v\n", err)
+					} else {
+						fmt.Printf("Sent registration message: username=%s, publicKey=%s\n", u, pk)
+					}
+				} else {
+					fmt.Println("WebSocket connection is not established.")
+				}
 			}
 			return btn.Layout(gtx)
 		}),

@@ -62,7 +62,39 @@ func connectToWebSocket(wsURL string) error {
 		}
 	}()
 
+	// Gorutyna do odbierania wiadomości
+	go func() {
+		for {
+			var msg internal.Response
+			err := wsConn.ReadJSON(&msg)
+			if err != nil {
+				log.Println("Error reading message:", err)
+				break
+			}
+			handleMessage(msg)
+		}
+	}()
+
 	return nil
+}
+
+func handleMessage(msg internal.Response) {
+	log.Printf("Received message: Command=%s, Data=%s\n", msg.Command, msg.Data)
+
+	// Obsługa różnych typów wiadomości
+	switch msg.Command {
+	case internal.ResponseRegisterSuccess:
+		log.Println("Registered successfully")
+		currentView = internal.ViewMain
+	case internal.ResponseCommand("example_command"):
+		// Obsłuż wiadomość o komendzie "example_command"
+		log.Println("Handling example_command:", msg.Data)
+	case internal.ResponseCommand("another_command"):
+		// Obsłuż inną komendę
+		log.Println("Handling another_command:", msg.Data)
+	default:
+		log.Println("Unknown command:", msg.Command)
+	}
 }
 
 func loop(w *app.Window) error {
@@ -84,7 +116,7 @@ func loop(w *app.Window) error {
 			case internal.ViewLogin:
 				views.LayoutLogin(gtx, th, &currentView)
 			case internal.ViewRegister:
-				views.LayoutRegister(gtx, th, &currentView)
+				views.LayoutRegister(gtx, th, &currentView, wsConn)
 			case internal.ViewResolver:
 				views.LayoutResolver(gtx, th, &currentView)
 			case internal.ViewLoading:
