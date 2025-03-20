@@ -35,3 +35,15 @@ func GetPublicKeyByUsername(db *gorm.DB, username string) (string, error) {
 
 	return user.PublicKey, nil
 }
+
+func GetUsernameByUserID(db *gorm.DB, userID uint) (string, error) {
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("user not found")
+		}
+		return "", err
+	}
+
+	return user.Username, nil
+}

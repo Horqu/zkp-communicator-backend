@@ -10,9 +10,18 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/gorilla/websocket"
 
+	"client/encryption"
 	"client/internal"
 )
+
+type DecryptedMessage struct {
+	SenderUsername    string
+	ReceipentUsername string
+	Content           string
+	CreatedAt         time.Time
+}
 
 // Zmienne do logiki ekranu Logged
 var (
@@ -35,10 +44,29 @@ var (
 	sendMessageButton = new(widget.Clickable)
 
 	friendButtons []*widget.Clickable
+
+	// WebSocket connection
+	wsConnGlobal *websocket.Conn
+
+	// Login
+	usernameLoginGlobal string
+
+	decryptedMessages       []DecryptedMessage
+	selectedFriendPublicKey string
+	userPublicKeyGlobal     string
 )
 
 // LayoutLogged - główny ekran (chat) po zalogowaniu
-func LayoutLogged(gtx layout.Context, th *material.Theme, currentView *internal.AppView) layout.Dimensions {
+func LayoutLogged(gtx layout.Context, th *material.Theme, currentView *internal.AppView, wsConn *websocket.Conn, usernameLogin *string, contactList []internal.SimplifiedContact, userPublicKey string, friendPublicKey string, messages []DecryptedMessage) layout.Dimensions {
+	userPublicKeyGlobal = userPublicKey
+	selectedFriendPublicKey = friendPublicKey
+	decryptedMessages = messages
+	friendList = make([]string, len(contactList))
+	wsConnGlobal = wsConn
+	usernameLoginGlobal = *usernameLogin
+	for i, contact := range contactList {
+		friendList[i] = contact.Username
+	}
 	now := time.Now()
 	if !lastFrameLogged.IsZero() {
 		dt := now.Sub(lastFrameLogged).Seconds()
@@ -142,6 +170,22 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 			if button.Clicked(gtx) {
 				fmt.Printf("Selected friend: %s\n", friend)
 				selectedFriend = index
+				friendName := friendList[selectedFriend]
+				fmt.Printf("Selected friend: %s\n", friendName)
+				if wsConnGlobal != nil {
+					msg := internal.Message{
+						Command: internal.MessageSelectChat,
+						Data:    fmt.Sprintf(`{"username":"%s","friend":"%s"}`, usernameLoginGlobal, friendName),
+					}
+					err := wsConnGlobal.WriteJSON(msg)
+					if err != nil {
+						fmt.Printf("Failed to send select chat message: %v\n", err)
+					} else {
+						fmt.Printf("Sent select chat message: username=%s, friend=%s\n", usernameLoginGlobal, friendName)
+					}
+				} else {
+					fmt.Println("WebSocket connection is not established.")
+				}
 			}
 
 			// Podświetlenie wybranego znajomego
@@ -161,6 +205,19 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 }
 
 // layoutChat wyświetla chat z aktualnie wybraną osobą
+//
+//	func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
+//		if selectedFriend < 0 || selectedFriend >= len(friendList) {
+//			// Jeśli nic nie wybrano, pokaż placeholder
+//			lbl := material.Label(th, unit.Sp(16), "Select a friend to chat")
+//			lbl.Alignment = text.Middle
+//			return lbl.Layout(gtx)
+//		}
+//		friendName := friendList[selectedFriend]
+//		lbl := material.Label(th, unit.Sp(16), "Chat with "+friendName)
+//		lbl.Alignment = text.Middle
+//		return lbl.Layout(gtx)
+//	}
 func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	if selectedFriend < 0 || selectedFriend >= len(friendList) {
 		// Jeśli nic nie wybrano, pokaż placeholder
@@ -168,10 +225,67 @@ func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
 		lbl.Alignment = text.Middle
 		return lbl.Layout(gtx)
 	}
+
+	// Lista wiadomości
 	friendName := friendList[selectedFriend]
-	lbl := material.Label(th, unit.Sp(16), "Chat with "+friendName)
-	lbl.Alignment = text.Middle
-	return lbl.Layout(gtx)
+	chatLabel := material.Label(th, unit.Sp(16), "Chat with "+friendName)
+	chatLabel.Alignment = text.Start
+
+	// Używamy layout.List do przewijania wiadomości
+	list := &layout.List{Axis: layout.Vertical}
+
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		// Nagłówek chatu
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return chatLabel.Layout(gtx)
+		}),
+		// Lista wiadomości
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return list.Layout(gtx, len(decryptedMessages), func(gtx layout.Context, i int) layout.Dimensions {
+				// Pobieramy wiadomość
+				message := decryptedMessages[i]
+
+				// Wyświetlamy wiadomość
+				var bubbleColor color.NRGBA
+				var textColor color.NRGBA
+				if message.SenderUsername == usernameLoginGlobal {
+					// Wiadomość wysłana przez użytkownika
+					bubbleColor = color.NRGBA{R: 0xD1, G: 0xF7, B: 0xC4, A: 0xFF} // Zielony
+					textColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}   // Czarny
+				} else {
+					// Wiadomość odebrana
+					bubbleColor = color.NRGBA{R: 0xF0, G: 0xF0, B: 0xF0, A: 0xFF} // Szary
+					textColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xFF}   // Czarny
+				}
+
+				// Styl wiadomości
+				bubble := material.Label(th, unit.Sp(14), fmt.Sprintf("%s: %s", message.SenderUsername, message.Content))
+				bubble.Color = textColor
+
+				return layout.Inset{
+					Top:    unit.Dp(4),
+					Bottom: unit.Dp(4),
+					Left:   unit.Dp(8),
+					Right:  unit.Dp(8),
+				}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Stack{}.Layout(gtx,
+						layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+							// Tło wiadomości
+							return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return widget.Border{
+									Color:        bubbleColor,
+									CornerRadius: unit.Dp(4),
+									Width:        unit.Dp(1),
+								}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+									return bubble.Layout(gtx)
+								})
+							})
+						}),
+					)
+				})
+			})
+		}),
+	)
 }
 
 // layoutBottomBar - pole do wpisania nowego znajomego i wiadomości
@@ -190,7 +304,24 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 				// Dodaj znajomego do listy
 				name := newFriendEditor.Text()
 				if name != "" {
-					friendList = append(friendList, name)
+					// friendList = append(friendList, name)
+					fmt.Printf("Add friend: %s\n", name)
+
+					if wsConnGlobal != nil {
+						msg := internal.Message{
+							Command: internal.MessageAddFriend,
+							Data:    fmt.Sprintf(`{"username":"%s","friend":"%s"}`, usernameLoginGlobal, name),
+						}
+						err := wsConnGlobal.WriteJSON(msg)
+						if err != nil {
+							fmt.Printf("Failed to send add friend message: %v\n", err)
+						} else {
+							fmt.Printf("Added friend %s for user %s\n", name, usernameLoginGlobal)
+						}
+					} else {
+						fmt.Println("WebSocket connection is not established.")
+					}
+
 					newFriendEditor.SetText("")
 				}
 			}
@@ -207,9 +338,32 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			btn := material.Button(th, sendMessageButton, "Send")
 			if sendMessageButton.Clicked(gtx) {
 				if selectedFriend >= 0 && selectedFriend < len(friendList) {
-					msg := messageEditor.Text()
-					// Tu możesz dodać logikę wysyłania wiadomości do friendList[selectedFriend]
-					fmt.Printf("Send to %s: %s\n", friendList[selectedFriend], msg)
+					msgText := messageEditor.Text()
+					friendUsername := friendList[selectedFriend]
+
+					G1AffineUserPublicKey, _ := encryption.StringToPublicKey(userPublicKeyGlobal)
+					C1ForSender, ContentForSender := encryption.EncryptText(msgText, &G1AffineUserPublicKey)
+					C1ForSenderString := encryption.PublicKeyToString(C1ForSender)
+
+					G1AffineFriendPublicKey, _ := encryption.StringToPublicKey(selectedFriendPublicKey)
+					C1ForFriend, ContentForFriend := encryption.EncryptText(msgText, &G1AffineFriendPublicKey)
+					C1ForFriendString := encryption.PublicKeyToString(C1ForFriend)
+
+					fmt.Printf("Send message from %s to %s\n", usernameLoginGlobal, friendUsername)
+					if wsConnGlobal != nil {
+						msg := internal.Message{
+							Command: internal.MessageSendMessage,
+							Data:    fmt.Sprintf(`{"username":"%s","friend":"%s","c1user":"%s","contentuser":"%s","c1friend":"%s","contentfriend":"%s"}`, usernameLoginGlobal, friendUsername, C1ForSenderString, ContentForSender, C1ForFriendString, ContentForFriend),
+						}
+						err := wsConnGlobal.WriteJSON(msg)
+						if err != nil {
+							fmt.Printf("Failed to send select chat message: %v\n", err)
+						} else {
+							fmt.Printf("Sent chat message from username=%s to friend=%s\n", usernameLoginGlobal, friendUsername)
+						}
+					} else {
+						fmt.Println("WebSocket connection is not established.")
+					}
 					messageEditor.SetText("")
 				}
 			}

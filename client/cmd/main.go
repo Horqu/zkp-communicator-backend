@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
+	"math/big"
 	"net/url"
 	"os"
 	"time"
@@ -13,13 +15,19 @@ import (
 	"gioui.org/widget/material"
 	"github.com/gorilla/websocket"
 
+	"client/encryption"
 	"client/internal"
 	"client/views"
 )
 
 var (
-	wsConn      *websocket.Conn
-	currentView internal.AppView = internal.ViewMain
+	wsConn                  *websocket.Conn
+	currentView             internal.AppView = internal.ViewMain
+	usernameLogin           string
+	friendList              []internal.SimplifiedContact
+	userPublicKey           string
+	selectedFriendPublicKey string
+	decryptedMessagesGlobal []views.DecryptedMessage
 )
 
 func main() {
@@ -86,6 +94,80 @@ func handleMessage(msg internal.Response) {
 	case internal.ResponseRegisterSuccess:
 		log.Println("Registered successfully")
 		currentView = internal.ViewMain
+	case internal.ResponseLoginSuccess:
+		log.Println("Logged in successfully")
+		currentView = internal.ViewResolver
+	case internal.ResponseSolveSuccess:
+		log.Println("Solved successfully")
+
+		// Rozpakowanie kontaktów z odpowiedzi
+		var responseData struct {
+			PublicKey  string                       `json:"publicKey"`
+			FriendList []internal.SimplifiedContact `json:"friendList"`
+		}
+		err := json.Unmarshal([]byte(msg.Data), &responseData)
+		if err != nil {
+			log.Printf("Failed to parse ResponseSolveSuccess data: %v", err)
+			return
+		}
+
+		userPublicKey = responseData.PublicKey
+		log.Printf("Updated userPublicKey: %s", userPublicKey)
+
+		// Przypisanie kontaktów do globalnej zmiennej friendList
+		friendList = responseData.FriendList
+		log.Printf("Updated friendList: %+v", friendList)
+
+		currentView = internal.ViewLogged
+	case internal.ResponseSelectChat:
+		log.Println("Selected chat successfully")
+
+		type SimplifiedMessage struct {
+			SenderUsername    string    `json:"senderUsername"`
+			RecipientUsername string    `json:"recipientUsername"`
+			C1                string    `json:"c1"`
+			Content           string    `json:"content"`
+			CreatedAt         time.Time `json:"createdAt"`
+		}
+
+		type responseData struct {
+			FriendPublicKey string              `json:"friendPublicKey"`
+			Messages        []SimplifiedMessage `json:"messages"`
+		}
+
+		var chatData responseData
+		err := json.Unmarshal([]byte(msg.Data), &chatData)
+		if err != nil {
+			log.Printf("Failed to parse ResponseSelectChat data: %v", err)
+			return
+		}
+
+		// Zapisanie friendPublicKey do zmiennej globalnej
+		selectedFriendPublicKey = chatData.FriendPublicKey
+		log.Printf("Updated selectedFriendPublicKey: %s", selectedFriendPublicKey)
+
+		// Zapisanie wiadomości do zmiennej lokalnej
+		var chatMessages []SimplifiedMessage = chatData.Messages
+		log.Printf("Updated chatMessages: %+v", chatMessages)
+
+		var decryptedMessages []views.DecryptedMessage
+		userPrivateKeyBigInt := new(big.Int)
+		userPrivateKeyBigInt.SetString(views.UserPrivateKey, 10)
+		log.Printf("User private key: %s", userPrivateKeyBigInt)
+		for _, message := range chatMessages {
+			C1G1Affine, _ := encryption.StringToPublicKey(message.C1)
+
+			decryptedContent := encryption.DecryptText(C1G1Affine, message.Content, userPrivateKeyBigInt)
+			decryptedMessages = append(decryptedMessages, views.DecryptedMessage{
+				SenderUsername:    message.SenderUsername,
+				ReceipentUsername: message.RecipientUsername,
+				Content:           string(decryptedContent),
+				CreatedAt:         message.CreatedAt,
+			})
+		}
+		log.Printf("Decrypted messages: %+v", decryptedMessages)
+		decryptedMessagesGlobal = decryptedMessages
+
 	case internal.ResponseCommand("example_command"):
 		// Obsłuż wiadomość o komendzie "example_command"
 		log.Println("Handling example_command:", msg.Data)
@@ -114,17 +196,17 @@ func loop(w *app.Window) error {
 			case internal.ViewMain:
 				views.LayoutMain(gtx, th, &currentView)
 			case internal.ViewLogin:
-				views.LayoutLogin(gtx, th, &currentView)
+				views.LayoutLogin(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewRegister:
 				views.LayoutRegister(gtx, th, &currentView, wsConn)
 			case internal.ViewResolver:
-				views.LayoutResolver(gtx, th, &currentView)
+				views.LayoutResolver(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewLoading:
 				views.LayoutLoading(gtx, th, &currentView)
 			case internal.ViewError:
 				views.LayoutError(gtx, th, &currentView)
 			case internal.ViewLogged:
-				views.LayoutLogged(gtx, th, &currentView)
+				views.LayoutLogged(gtx, th, &currentView, wsConn, &usernameLogin, friendList, userPublicKey, selectedFriendPublicKey, decryptedMessagesGlobal)
 			}
 
 			e.Frame(gtx.Ops)

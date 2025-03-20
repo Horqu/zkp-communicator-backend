@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/Horqu/zkp-communicator-backend/cmd/database/queries"
 	"github.com/Horqu/zkp-communicator-backend/cmd/internal"
 	wsresponses "github.com/Horqu/zkp-communicator-backend/cmd/ws-responses"
+
+	// "github.com/Horqu/zkp-communicator-backend/cmd/encryption"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -21,7 +24,8 @@ var (
 		},
 	}
 
-	sessions = map[string]time.Time{} // Change to username -> pair of token and expiration time
+	sessions   = map[string]time.Time{} // Change to username -> pair of token and expiration time
+	challenges = map[string]string{}    // Change to username -> challenge
 )
 
 func wsHandler(c *gin.Context) {
@@ -30,8 +34,6 @@ func wsHandler(c *gin.Context) {
 		return
 	}
 	defer conn.Close()
-
-	var publicKey string
 
 	for {
 		_, msg, err := conn.ReadMessage()
@@ -69,28 +71,242 @@ func wsHandler(c *gin.Context) {
 			resp := wsresponses.ResponseRegisterSuccess()
 			sendJSON(conn, resp)
 
-		case "login":
-			// Generujemy public key i challenge
-			publicKey = "public_key_for_" + message.Data
-			challenge := "solve_this_challenge"
+		case internal.MessageLogin:
+			var dataMap map[string]string
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
+			}
+
+			username := dataMap["username"]
+			method := dataMap["method"]
+			fmt.Printf("Logging in user: username=%s, method=%s\n", username, method)
+
+			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), username)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("User not found"))
+				continue
+			}
+
+			if method == "methodA" {
+				resp := wsresponses.ResponseLoginSuccess(publicKey)
+				sendJSON(conn, resp)
+			} else {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid method"))
+				continue
+			}
+		case internal.MessageSolve:
+			var dataMap map[string]string
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
+			}
+
+			username := dataMap["username"]
+			fmt.Printf("Resolving user: username=%s\n", username)
+
+			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), username)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("User not found"))
+				continue
+			}
+
+			friendList, err := queries.GetContactsByUsername(db.GetDBInstance(), username)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to get contacts"))
+				continue
+			}
+
+			resp := wsresponses.ResponseSolveSuccess(publicKey, friendList)
+			sendJSON(conn, resp)
+
+		case internal.MessageAddFriend:
+			var dataMap map[string]string
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
+			}
+
+			username := dataMap["username"]
+			friend := dataMap["friend"]
+			fmt.Printf("Adding friend: username=%s, friend=%s\n", username, friend)
+
+			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Friend not found"))
+				continue
+			}
+
+			err = queries.AddContact(db.GetDBInstance(), username, friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to add friend"))
+				continue
+			}
+
+			friendList, err := queries.GetContactsByUsername(db.GetDBInstance(), username)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to get contacts"))
+				continue
+			}
+
+			resp := wsresponses.ResponseSolveSuccess(publicKey, friendList)
+			sendJSON(conn, resp)
+		case internal.MessageSelectChat:
+			var dataMap map[string]string
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
+			}
+
+			username := dataMap["username"]
+			friend := dataMap["friend"]
+			fmt.Printf("Selecting chat: username=%s, friend=%s\n", username, friend)
+
+			type SimplifiedMessage struct {
+				SenderUsername    string    `json:"senderUsername"`
+				RecipientUsername string    `json:"recipientUsername"`
+				C1                string    `json:"c1"`
+				Content           string    `json:"content"`
+				CreatedAt         time.Time `json:"createdAt"`
+			}
+
+			friendPublicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Friend not found"))
+				continue
+			}
+
+			chatForUser, err := queries.GetMessagesBetweenUsers(db.GetDBInstance(), username, friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to get chat"))
+				continue
+			}
+
+			// Przekształć dane w listę SimplifiedMessage
+			var simplifiedMessages []SimplifiedMessage
+			for _, message := range chatForUser {
+				senderUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.SenderID)
+				recipientUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.RecipientID)
+
+				simplifiedMessages = append(simplifiedMessages, SimplifiedMessage{
+					SenderUsername:    senderUsername,
+					RecipientUsername: recipientUsername,
+					C1:                message.C1,
+					Content:           message.Content,
+					CreatedAt:         message.CreatedAt,
+				})
+			}
+
+			// Tworzymy strukturę odpowiedzi z friendPublicKey
+			responseData := struct {
+				FriendPublicKey string              `json:"friendPublicKey"`
+				Messages        []SimplifiedMessage `json:"messages"`
+			}{
+				FriendPublicKey: friendPublicKey,
+				Messages:        simplifiedMessages,
+			}
+
+			// Serializuj dane do JSON
+			data, err := json.Marshal(responseData)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to serialize chat data"))
+				continue
+			}
+
+			// Wyślij dane jako odpowiedź
 			resp := internal.Response{
-				Command: "challenge",
-				Data:    fmt.Sprintf("%s|%s", publicKey, challenge),
+				Command: internal.ResponseSelectChat,
+				Data:    string(data),
 			}
 			sendJSON(conn, resp)
 
-		case "solve":
-			// Weryfikacja rozwiązania
-			if message.Data == "correct_solution" {
-				authToken := "auth_token_xxx"
-				// Ustawiamy wygaśnięcie np. za 2 minuty
-				sessions[authToken] = time.Now().Add(2 * time.Minute)
-
-				resp := internal.Response{Command: "auth", Data: authToken}
-				sendJSON(conn, resp)
-			} else {
-				conn.WriteMessage(websocket.TextMessage, []byte("Invalid solution"))
+		case internal.MessageSendMessage:
+			var dataMap map[string]string
+			log.Printf("Received message: %s\n", message.Data)
+			err := json.Unmarshal([]byte(message.Data), &dataMap)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
+				continue
 			}
+
+			username := dataMap["username"]
+			friend := dataMap["friend"]
+			c1user := dataMap["c1user"]
+			contentuser := dataMap["contentuser"]
+			c1friend := dataMap["c1friend"]
+			contentfriend := dataMap["contentfriend"]
+			fmt.Printf("Sending message: username=%s, friend=%s, c1user=%s, contentuser=%s, c1friend=%s, contentfriend=%s\n", username, friend, c1user, contentuser, c1friend, contentfriend)
+
+			err = queries.AddMessage(db.GetDBInstance(), username, friend, c1user, contentuser, c1friend, contentfriend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to send message"))
+				continue
+			}
+
+			type SimplifiedMessage struct {
+				SenderUsername    string    `json:"senderUsername"`
+				RecipientUsername string    `json:"recipientUsername"`
+				C1                string    `json:"c1"`
+				Content           string    `json:"content"`
+				CreatedAt         time.Time `json:"createdAt"`
+			}
+
+			friendPublicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Friend not found"))
+				continue
+			}
+
+			chatForUser, err := queries.GetMessagesBetweenUsers(db.GetDBInstance(), username, friend)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to get chat"))
+				continue
+			}
+
+			queries.GetUsernameByUserID(db.GetDBInstance(), 1)
+			// Przekształć dane w listę SimplifiedMessage
+			var simplifiedMessages []SimplifiedMessage
+			for _, message := range chatForUser {
+				senderUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.SenderID)
+				recipientUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.RecipientID)
+
+				simplifiedMessages = append(simplifiedMessages, SimplifiedMessage{
+					SenderUsername:    senderUsername,
+					RecipientUsername: recipientUsername,
+					C1:                message.C1,
+					Content:           message.Content,
+					CreatedAt:         message.CreatedAt,
+				})
+			}
+
+			// Tworzymy strukturę odpowiedzi z friendPublicKey
+			responseData := struct {
+				FriendPublicKey string              `json:"friendPublicKey"`
+				Messages        []SimplifiedMessage `json:"messages"`
+			}{
+				FriendPublicKey: friendPublicKey,
+				Messages:        simplifiedMessages,
+			}
+
+			// Serializuj dane do JSON
+			data, err := json.Marshal(responseData)
+			if err != nil {
+				conn.WriteMessage(websocket.TextMessage, []byte("Failed to serialize chat data"))
+				continue
+			}
+
+			// Wyślij dane jako odpowiedź
+			resp := internal.Response{
+				Command: internal.ResponseSelectChat,
+				Data:    string(data),
+			}
+			log.Printf("Sending data: %s", data)
+
+			sendJSON(conn, resp)
 
 		case "ping":
 			// Sprawdzamy, czy token jest ważny
