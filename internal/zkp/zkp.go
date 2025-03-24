@@ -3,6 +3,7 @@ package zkp
 import (
 	"encoding/hex"
 	"io"
+	"log"
 	"math/big"
 	"net/http"
 
@@ -12,7 +13,6 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
-	"fmt"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
@@ -55,22 +55,22 @@ func Gnark_crypto_main() {
 		panic(err)
 	}
 
-	fmt.Println("Sekretny klucz x:", x)
+	log.Println("Sekretny klucz x:", x)
 
 	// Obliczenie y = g^x
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
 
-	fmt.Println("Publiczny klucz y:", y.String())
+	log.Println("Publiczny klucz y:", y.String())
 
 	// Weryfikacja dowodu (sprawdzenie, czy x rzeczywiście generuje y)
 	var check bn254.G1Affine
 	check.ScalarMultiplication(&g, x) // to musi zwrocic klient do serwera
 
 	if check.Equal(&y) {
-		fmt.Println("Dowód poprawny: posiadacz zna x")
+		log.Println("Dowód poprawny: posiadacz zna x")
 	} else {
-		fmt.Println("Dowód błędny: x nie pasuje")
+		log.Println("Dowód błędny: x nie pasuje")
 	}
 }
 
@@ -89,7 +89,7 @@ func Schnorr_proof() {
 
 	// Generowanie klucza prywatnego x
 	x, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
-	fmt.Println("Klucz prywatny x:", x)
+	log.Println("Klucz prywatny x:", x)
 	if err != nil {
 		panic(err)
 	}
@@ -97,7 +97,7 @@ func Schnorr_proof() {
 	// Obliczenie klucza publicznego y = g^x
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
-	fmt.Println("Klucz publiczny y:", y.String())
+	log.Println("Klucz publiczny y:", y.String())
 
 	// Wygenerowanie losowej wartości r
 	r, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
@@ -128,9 +128,9 @@ func Schnorr_proof() {
 	RplusYE.Add(&R, &yE)
 
 	if gS.Equal(&RplusYE) {
-		fmt.Println("Dowód Schnorra poprawny: klient zna klucz prywatny.")
+		log.Println("Dowód Schnorra poprawny: klient zna klucz prywatny.")
 	} else {
-		fmt.Println("Dowód Schnorra niepoprawny: klient nie zna klucza.")
+		log.Println("Dowód Schnorra niepoprawny: klient nie zna klucza.")
 	}
 }
 
@@ -149,7 +149,7 @@ func encryption_decryption_test() {
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
 
-	fmt.Println("Publiczny klucz y:", y.String())
+	log.Println("Publiczny klucz y:", y.String())
 
 	// Dowolny tekst do zaszyfrowania
 	plaintext := "To jest tajna wiadomość."
@@ -158,12 +158,12 @@ func encryption_decryption_test() {
 	C1, cipherBytes := encryptText(plaintext, &g, &y)
 
 	// Wyświetlamy efekt szyfrowania
-	fmt.Println("C1 (punkt na krzywej):", C1)
-	fmt.Println("Zaszyfrowana wiadomość (AES):", hex.EncodeToString(cipherBytes))
+	log.Println("C1 (punkt na krzywej):", C1)
+	log.Println("Zaszyfrowana wiadomość (AES):", hex.EncodeToString(cipherBytes))
 
 	// Odszyfrowanie
 	decryptedText := decryptText(C1, cipherBytes, x)
-	fmt.Println("Odszyfrowana wiadomość:", decryptedText)
+	log.Println("Odszyfrowana wiadomość:", decryptedText)
 }
 
 // encryptText – szyfruje tekst przy pomocy klucza publicznego y

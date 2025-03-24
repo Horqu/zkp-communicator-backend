@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -60,7 +59,7 @@ func wsHandler(c *gin.Context) {
 
 			username := dataMap["username"]
 			publicKey := dataMap["publicKey"]
-			fmt.Printf("Registering user: username=%s, publicKey=%s\n", username, publicKey)
+			log.Printf("Registering user: username=%s, publicKey=%s\n", username, publicKey)
 
 			err = queries.AddUser(db.GetDBInstance(), username, publicKey)
 			if err != nil {
@@ -81,7 +80,7 @@ func wsHandler(c *gin.Context) {
 
 			username := dataMap["username"]
 			method := dataMap["method"]
-			fmt.Printf("Logging in user: username=%s, method=%s\n", username, method)
+			log.Printf("Logging in user: username=%s, method=%s\n", username, method)
 
 			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), username)
 			if err != nil {
@@ -105,7 +104,7 @@ func wsHandler(c *gin.Context) {
 			}
 
 			username := dataMap["username"]
-			fmt.Printf("Resolving user: username=%s\n", username)
+			log.Printf("Resolving user: username=%s\n", username)
 
 			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), username)
 			if err != nil {
@@ -132,7 +131,7 @@ func wsHandler(c *gin.Context) {
 
 			username := dataMap["username"]
 			friend := dataMap["friend"]
-			fmt.Printf("Adding friend: username=%s, friend=%s\n", username, friend)
+			log.Printf("Adding friend: username=%s, friend=%s\n", username, friend)
 
 			publicKey, err := queries.GetPublicKeyByUsername(db.GetDBInstance(), friend)
 			if err != nil {
@@ -164,7 +163,7 @@ func wsHandler(c *gin.Context) {
 
 			username := dataMap["username"]
 			friend := dataMap["friend"]
-			fmt.Printf("Selecting chat: username=%s, friend=%s\n", username, friend)
+			log.Printf("Selecting chat: username=%s, friend=%s\n", username, friend)
 
 			type SimplifiedMessage struct {
 				SenderUsername    string    `json:"senderUsername"`
@@ -239,7 +238,7 @@ func wsHandler(c *gin.Context) {
 			contentuser := dataMap["contentuser"]
 			c1friend := dataMap["c1friend"]
 			contentfriend := dataMap["contentfriend"]
-			fmt.Printf("Sending message: username=%s, friend=%s, c1user=%s, contentuser=%s, c1friend=%s, contentfriend=%s\n", username, friend, c1user, contentuser, c1friend, contentfriend)
+			log.Printf("Sending message: username=%s, friend=%s, c1user=%s, contentuser=%s, c1friend=%s, contentfriend=%s\n", username, friend, c1user, contentuser, c1friend, contentfriend)
 
 			err = queries.AddMessage(db.GetDBInstance(), username, friend, c1user, contentuser, c1friend, contentfriend)
 			if err != nil {

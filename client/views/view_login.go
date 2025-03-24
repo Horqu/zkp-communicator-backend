@@ -54,13 +54,13 @@ func LayoutLogin(gtx layout.Context, th *material.Theme, currentView *internal.A
 					}
 					err := wsConn.WriteJSON(msg)
 					if err != nil {
-						fmt.Printf("Failed to send registration message: %v\n", err)
+						log.Printf("Failed to send registration message: %v\n", err)
 					} else {
-						fmt.Printf("Sent login message: username=%s, publicKey=%s\n", login, method)
+						log.Printf("Sent login message: username=%s, publicKey=%s\n", login, method)
 						*usernameLogin = login
 					}
 				} else {
-					fmt.Println("WebSocket connection is not established.")
+					log.Println("WebSocket connection is not established.")
 				}
 			}
 			return btn.Layout(gtx)

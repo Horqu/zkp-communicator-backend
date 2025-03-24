@@ -2,6 +2,7 @@ package views
 
 import (
 	"fmt"
+	"log"
 
 	"gioui.org/layout"
 	"gioui.org/text"
@@ -102,7 +103,7 @@ func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *interna
 			if registerButton.Clicked(gtx) {
 				u := usernameEditor.Text()
 				pk := pubKeyEditor.Text()
-				fmt.Printf("Register user=%s with publicKey=%s\n", u, pk)
+				log.Printf("Register user=%s with publicKey=%s\n", u, pk)
 				if wsConn != nil {
 					msg := internal.Message{
 						Command: internal.MessageRegister,
@@ -110,12 +111,12 @@ func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *interna
 					}
 					err := wsConn.WriteJSON(msg)
 					if err != nil {
-						fmt.Printf("Failed to send registration message: %v\n", err)
+						log.Printf("Failed to send registration message: %v\n", err)
 					} else {
-						fmt.Printf("Sent registration message: username=%s, publicKey=%s\n", u, pk)
+						log.Printf("Sent registration message: username=%s, publicKey=%s\n", u, pk)
 					}
 				} else {
-					fmt.Println("WebSocket connection is not established.")
+					log.Println("WebSocket connection is not established.")
 				}
 			}
 			return btn.Layout(gtx)

@@ -37,12 +37,12 @@ func LayoutResolver(gtx layout.Context, th *material.Theme, currentView *interna
 					}
 					err := wsConn.WriteJSON(msg)
 					if err != nil {
-						fmt.Printf("Failed to send solve message: %v\n", err)
+						log.Printf("Failed to send solve message: %v\n", err)
 					} else {
-						fmt.Printf("Sent solve message for username=%s\n", *usernameLogin)
+						log.Printf("Sent solve message for username=%s\n", *usernameLogin)
 					}
 				} else {
-					fmt.Println("WebSocket connection is not established.")
+					log.Println("WebSocket connection is not established.")
 				}
 			}
 			return btn.Layout(gtx)

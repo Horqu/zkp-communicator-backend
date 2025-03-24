@@ -2,7 +2,7 @@ package encryption
 
 import (
 	"crypto/rand"
-	"fmt"
+	"log"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
@@ -36,21 +36,21 @@ func Gnark_crypto_main() {
 		panic(err)
 	}
 
-	fmt.Println("Sekretny klucz x:", x)
+	log.Println("Sekretny klucz x:", x)
 
 	// Obliczenie y = g^x
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
 
-	fmt.Println("Publiczny klucz y:", y.String())
+	log.Println("Publiczny klucz y:", y.String())
 
 	// Weryfikacja dowodu (sprawdzenie, czy x rzeczywiście generuje y)
 	var check bn254.G1Affine
 	check.ScalarMultiplication(&g, x) // to musi zwrocic klient do serwera
 
 	if check.Equal(&y) {
-		fmt.Println("Dowód poprawny: posiadacz zna x")
+		log.Println("Dowód poprawny: posiadacz zna x")
 	} else {
-		fmt.Println("Dowód błędny: x nie pasuje")
+		log.Println("Dowód błędny: x nie pasuje")
 	}
 }

@@ -3,6 +3,7 @@ package views
 import (
 	"fmt"
 	"image/color"
+	"log"
 	"time"
 
 	"gioui.org/layout"
@@ -168,10 +169,10 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			item := material.Button(th, button, friend)
 			if button.Clicked(gtx) {
-				fmt.Printf("Selected friend: %s\n", friend)
+				log.Printf("Selected friend: %s\n", friend)
 				selectedFriend = index
 				friendName := friendList[selectedFriend]
-				fmt.Printf("Selected friend: %s\n", friendName)
+				log.Printf("Selected friend: %s\n", friendName)
 				if wsConnGlobal != nil {
 					msg := internal.Message{
 						Command: internal.MessageSelectChat,
@@ -179,12 +180,12 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 					}
 					err := wsConnGlobal.WriteJSON(msg)
 					if err != nil {
-						fmt.Printf("Failed to send select chat message: %v\n", err)
+						log.Printf("Failed to send select chat message: %v\n", err)
 					} else {
-						fmt.Printf("Sent select chat message: username=%s, friend=%s\n", usernameLoginGlobal, friendName)
+						log.Printf("Sent select chat message: username=%s, friend=%s\n", usernameLoginGlobal, friendName)
 					}
 				} else {
-					fmt.Println("WebSocket connection is not established.")
+					log.Println("WebSocket connection is not established.")
 				}
 			}
 
@@ -305,7 +306,7 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 				name := newFriendEditor.Text()
 				if name != "" {
 					// friendList = append(friendList, name)
-					fmt.Printf("Add friend: %s\n", name)
+					log.Printf("Add friend: %s\n", name)
 
 					if wsConnGlobal != nil {
 						msg := internal.Message{
@@ -314,12 +315,12 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 						}
 						err := wsConnGlobal.WriteJSON(msg)
 						if err != nil {
-							fmt.Printf("Failed to send add friend message: %v\n", err)
+							log.Printf("Failed to send add friend message: %v\n", err)
 						} else {
-							fmt.Printf("Added friend %s for user %s\n", name, usernameLoginGlobal)
+							log.Printf("Added friend %s for user %s\n", name, usernameLoginGlobal)
 						}
 					} else {
-						fmt.Println("WebSocket connection is not established.")
+						log.Println("WebSocket connection is not established.")
 					}
 
 					newFriendEditor.SetText("")
@@ -349,7 +350,7 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 					C1ForFriend, ContentForFriend := encryption.EncryptText(msgText, &G1AffineFriendPublicKey)
 					C1ForFriendString := encryption.PublicKeyToString(C1ForFriend)
 
-					fmt.Printf("Send message from %s to %s\n", usernameLoginGlobal, friendUsername)
+					log.Printf("Send message from %s to %s\n", usernameLoginGlobal, friendUsername)
 					if wsConnGlobal != nil {
 						msg := internal.Message{
 							Command: internal.MessageSendMessage,
@@ -357,12 +358,12 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 						}
 						err := wsConnGlobal.WriteJSON(msg)
 						if err != nil {
-							fmt.Printf("Failed to send select chat message: %v\n", err)
+							log.Printf("Failed to send select chat message: %v\n", err)
 						} else {
-							fmt.Printf("Sent chat message from username=%s to friend=%s\n", usernameLoginGlobal, friendUsername)
+							log.Printf("Sent chat message from username=%s to friend=%s\n", usernameLoginGlobal, friendUsername)
 						}
 					} else {
-						fmt.Println("WebSocket connection is not established.")
+						log.Println("WebSocket connection is not established.")
 					}
 					messageEditor.SetText("")
 				}
