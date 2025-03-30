@@ -35,7 +35,7 @@ var (
 	logoutButton  = new(widget.Clickable)
 
 	// Lista znajomych i zaznaczenie aktualnego
-	friendList     = []string{"Alice", "Bob", "Charlie"}
+	friendList     = []string{}
 	selectedFriend = -1
 
 	// Dolny pasek: dodawanie znajomego i wysyłanie wiadomości
@@ -45,6 +45,7 @@ var (
 	sendMessageButton = new(widget.Clickable)
 
 	friendButtons []*widget.Clickable
+	chatList      widget.List
 
 	// WebSocket connection
 	wsConnGlobal *websocket.Conn
@@ -205,20 +206,6 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 	return children
 }
 
-// layoutChat wyświetla chat z aktualnie wybraną osobą
-//
-//	func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
-//		if selectedFriend < 0 || selectedFriend >= len(friendList) {
-//			// Jeśli nic nie wybrano, pokaż placeholder
-//			lbl := material.Label(th, unit.Sp(16), "Select a friend to chat")
-//			lbl.Alignment = text.Middle
-//			return lbl.Layout(gtx)
-//		}
-//		friendName := friendList[selectedFriend]
-//		lbl := material.Label(th, unit.Sp(16), "Chat with "+friendName)
-//		lbl.Alignment = text.Middle
-//		return lbl.Layout(gtx)
-//	}
 func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	if selectedFriend < 0 || selectedFriend >= len(friendList) {
 		// Jeśli nic nie wybrano, pokaż placeholder
@@ -232,17 +219,17 @@ func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	chatLabel := material.Label(th, unit.Sp(16), "Chat with "+friendName)
 	chatLabel.Alignment = text.Start
 
-	// Używamy layout.List do przewijania wiadomości
-	list := &layout.List{Axis: layout.Vertical}
+	// Używamy widget.List do obsługi przewijania
+	chatList.Axis = layout.Vertical
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		// Nagłówek chatu
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return chatLabel.Layout(gtx)
 		}),
-		// Lista wiadomości
+		// Lista wiadomości z przewijaniem
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return list.Layout(gtx, len(decryptedMessages), func(gtx layout.Context, i int) layout.Dimensions {
+			return chatList.Layout(gtx, len(decryptedMessages), func(gtx layout.Context, i int) layout.Dimensions {
 				// Pobieramy wiadomość
 				message := decryptedMessages[i]
 

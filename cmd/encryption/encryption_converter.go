@@ -2,6 +2,8 @@ package encryption
 
 import (
 	"encoding/hex"
+	"fmt"
+	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
@@ -25,4 +27,15 @@ func StringToG1Affine(s string) (bn254.G1Affine, error) {
 	}
 
 	return y, nil
+}
+
+func PublicKeyStringToBigInt(publicKey string) (*big.Int, error) {
+
+	v := new(big.Int)
+	_, success := v.SetString(publicKey, 16)
+	if !success {
+		return nil, fmt.Errorf("failed to convert public key string to big int")
+	}
+
+	return v, nil
 }

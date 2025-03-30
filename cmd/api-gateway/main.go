@@ -153,6 +153,7 @@ func wsHandler(c *gin.Context) {
 
 			resp := wsresponses.ResponseSolveSuccess(publicKey, friendList)
 			sendJSON(conn, resp)
+
 		case internal.MessageSelectChat:
 			var dataMap map[string]string
 			err := json.Unmarshal([]byte(message.Data), &dataMap)
@@ -185,7 +186,6 @@ func wsHandler(c *gin.Context) {
 				continue
 			}
 
-			// Przekształć dane w listę SimplifiedMessage
 			var simplifiedMessages []SimplifiedMessage
 			for _, message := range chatForUser {
 				senderUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.SenderID)
@@ -200,7 +200,6 @@ func wsHandler(c *gin.Context) {
 				})
 			}
 
-			// Tworzymy strukturę odpowiedzi z friendPublicKey
 			responseData := struct {
 				FriendPublicKey string              `json:"friendPublicKey"`
 				Messages        []SimplifiedMessage `json:"messages"`
@@ -209,14 +208,12 @@ func wsHandler(c *gin.Context) {
 				Messages:        simplifiedMessages,
 			}
 
-			// Serializuj dane do JSON
 			data, err := json.Marshal(responseData)
 			if err != nil {
 				conn.WriteMessage(websocket.TextMessage, []byte("Failed to serialize chat data"))
 				continue
 			}
 
-			// Wyślij dane jako odpowiedź
 			resp := internal.Response{
 				Command: internal.ResponseSelectChat,
 				Data:    string(data),
@@ -267,7 +264,6 @@ func wsHandler(c *gin.Context) {
 			}
 
 			queries.GetUsernameByUserID(db.GetDBInstance(), 1)
-			// Przekształć dane w listę SimplifiedMessage
 			var simplifiedMessages []SimplifiedMessage
 			for _, message := range chatForUser {
 				senderUsername, _ := queries.GetUsernameByUserID(db.GetDBInstance(), message.SenderID)
@@ -282,7 +278,6 @@ func wsHandler(c *gin.Context) {
 				})
 			}
 
-			// Tworzymy strukturę odpowiedzi z friendPublicKey
 			responseData := struct {
 				FriendPublicKey string              `json:"friendPublicKey"`
 				Messages        []SimplifiedMessage `json:"messages"`
@@ -291,14 +286,12 @@ func wsHandler(c *gin.Context) {
 				Messages:        simplifiedMessages,
 			}
 
-			// Serializuj dane do JSON
 			data, err := json.Marshal(responseData)
 			if err != nil {
 				conn.WriteMessage(websocket.TextMessage, []byte("Failed to serialize chat data"))
 				continue
 			}
 
-			// Wyślij dane jako odpowiedź
 			resp := internal.Response{
 				Command: internal.ResponseSelectChat,
 				Data:    string(data),
