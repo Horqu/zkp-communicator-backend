@@ -2,7 +2,6 @@ package encryption
 
 import (
 	"crypto/rand"
-	"log"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
@@ -90,8 +89,6 @@ func TestFeigeFiatShamirProof(t *testing.T) {
 	}
 
 	N, e := GenerateFeigeFiatShamirChallenge()
-
-	log.Println("Klucz prywatny:", privateKey.String())
 
 	x, y, v := GenerateFeigeFiatShamirProof(privateKey, N, e)
 

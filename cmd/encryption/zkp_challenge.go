@@ -105,49 +105,86 @@ func GenerateFeigeFiatShamirChallenge() (*big.Int, *big.Int) {
 	N := new(big.Int).Mul(p, q) // N = p * q (modulo)
 	log.Println("N:", N.String())
 
-	e, err := rand.Int(rand.Reader, big.NewInt(2)) // Losowe wyzwanie: 0 lub 1
-	if err != nil {
-		panic(err)
+	// Generowanie 1024-bitowego wyzwania e
+	e := new(big.Int)
+	for i := 0; i < 1024; i++ {
+		bit, err := rand.Int(rand.Reader, big.NewInt(2)) // Losowy bit: 0 lub 1
+		if err != nil {
+			panic(err)
+		}
+		e.Lsh(e, 1) // Przesunięcie w lewo o 1 bit
+		e.Or(e, bit)
 	}
-	log.Println("e:", e.String())
+	log.Println("Wyzwanie e (1024 bity):", e.Text(2)) // Wyświetlenie w postaci binarnej
 
 	return N, e
 }
 
-func GenerateFeigeFiatShamirProof(privateKey *big.Int, N *big.Int, e *big.Int) (*big.Int, *big.Int, *big.Int) {
+func GenerateFeigeFiatShamirProof(privateKey *big.Int, N *big.Int, e *big.Int) ([]*big.Int, []*big.Int, *big.Int) {
+	v := new(big.Int).Exp(privateKey, big.NewInt(2), N) // v = privateKey^2 mod N
+	var xList []*big.Int
+	var yList []*big.Int
 
-	v := new(big.Int).Exp(privateKey, big.NewInt(2), N)
+	eCopy := new(big.Int).Set(e) // Kopia e
 
-	x := new(big.Int).Exp(v, big.NewInt(2), N) // x = v^2 mod N
+	for i := 0; i < 1024; i++ {
+		// Wybór losowej wartości r
+		r, err := rand.Int(rand.Reader, N)
+		if err != nil {
+			panic(err)
+		}
 
-	log.Println("x:", x.String())
-	// Obliczenie odpowiedzi y
-	var y *big.Int
-	if e == big.NewInt(0) {
-		y = v // Jeśli e = 0, odpowiedź to v
-	} else {
-		y = new(big.Int).Mul(v, privateKey) // Jeśli e = 1, odpowiedź to v * s mod N
-		y.Mod(y, N)
+		// Obliczenie x = r^2 mod N
+		x := new(big.Int).Exp(r, big.NewInt(2), N)
+		xList = append(xList, x)
+
+		// Pobranie i-tego bitu z e
+		bit := new(big.Int).And(eCopy, big.NewInt(1)) // Pobranie najmłodszego bitu
+		eCopy.Rsh(eCopy, 1)                           // Przesunięcie w prawo o 1 bit
+
+		// Obliczenie odpowiedzi y
+		var y *big.Int
+		if bit.Cmp(big.NewInt(0)) == 0 {
+			y = r // Jeśli bit = 0, odpowiedź to r
+		} else {
+			y = new(big.Int).Mul(r, privateKey) // Jeśli bit = 1, odpowiedź to r * privateKey mod N
+			y.Mod(y, N)
+		}
+		yList = append(yList, y)
 	}
 
-	return x, y, v
+	return xList, yList, v
 }
 
-func VerifyFeigeFiatShamir(x *big.Int, y *big.Int, v *big.Int, N *big.Int, e *big.Int) bool {
-	// Weryfikacja odpowiedzi
-	var lhs, rhs *big.Int
-	lhs = new(big.Int).Exp(y, big.NewInt(2), N) // y^2 mod N
+func VerifyFeigeFiatShamir(xList []*big.Int, yList []*big.Int, v *big.Int, N *big.Int, e *big.Int) bool {
+	eCopy := new(big.Int).Set(e) // Kopia e
 
-	if e == big.NewInt(0) {
-		// Jeśli e = 0, sprawdzamy: y^2 ≡ x mod N
-		rhs = x
-	} else {
-		// Jeśli e = 1, sprawdzamy: y^2 ≡ x * v mod N
-		rhs = new(big.Int).Mul(x, v)
-		rhs.Mod(rhs, N)
+	for i := 0; i < 1024; i++ {
+		// Pobranie i-tego bitu z e
+		bit := new(big.Int).And(eCopy, big.NewInt(1)) // Pobranie najmłodszego bitu
+		eCopy.Rsh(eCopy, 1)                           // Przesunięcie w prawo o 1 bit
+
+		// Obliczenie lewej strony równania: y^2 mod N
+		lhs := new(big.Int).Exp(yList[i], big.NewInt(2), N)
+
+		// Obliczenie prawej strony równania w zależności od bitu
+		var rhs *big.Int
+		if bit.Cmp(big.NewInt(0)) == 0 {
+			// Jeśli bit = 0, sprawdzamy: y^2 ≡ x mod N
+			rhs = xList[i]
+		} else {
+			// Jeśli bit = 1, sprawdzamy: y^2 ≡ x * v mod N
+			rhs = new(big.Int).Mul(xList[i], v)
+			rhs.Mod(rhs, N)
+		}
+
+		// Porównanie lewej i prawej strony
+		if lhs.Cmp(rhs) != 0 {
+			log.Printf("Weryfikacja nie powiodła się dla bitu %d", i)
+			return false
+		}
 	}
-
-	return lhs.Cmp(rhs) == 0
+	return true
 }
 
 func Schnorr_proof() {
