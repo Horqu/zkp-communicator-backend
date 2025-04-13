@@ -3,20 +3,21 @@ package encryption
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"math/big"
 
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
-func GeneratePrivateKey() big.Int {
+func GeneratePrivateKey() *big.Int {
 	x, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
 	if err != nil {
 		panic(err)
 	}
-	return *x
+	return x
 }
 
-func GeneratePublicKey(x big.Int) bn254.G1Affine {
+func GeneratePublicKey(x *big.Int) bn254.G1Affine {
 	var g bn254.G1Affine
 	g.X.SetString("1")
 	g.Y.SetString("2")
@@ -26,7 +27,7 @@ func GeneratePublicKey(x big.Int) bn254.G1Affine {
 	}
 
 	var y bn254.G1Affine
-	y.ScalarMultiplication(&g, &x)
+	y.ScalarMultiplication(&g, x)
 
 	return y
 }
@@ -50,4 +51,15 @@ func StringToPublicKey(s string) (bn254.G1Affine, error) {
 	}
 
 	return y, nil
+}
+
+func StringToBigInt(str string) (*big.Int, error) {
+
+	v := new(big.Int)
+	_, success := v.SetString(str, 10)
+	if !success {
+		return nil, fmt.Errorf("failed to convert string to big int")
+	}
+
+	return v, nil
 }

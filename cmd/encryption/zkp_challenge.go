@@ -9,7 +9,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
-func GenerateSigmaChallenge() (*big.Int, *big.Int) {
+func GenerateSigmaChallenge() (*big.Int, *big.Int, bn254.G1Affine) {
 
 	r, err := rand.Int(rand.Reader, bn254.ID.ScalarField())
 	if err != nil {
@@ -28,7 +28,7 @@ func GenerateSigmaChallenge() (*big.Int, *big.Int) {
 		panic(err)
 	}
 
-	return e, r // save e, t | send e, r
+	return e, r, t // save e, t | send e, r
 }
 
 func GenerateSigmaProof(privateKey *big.Int, e *big.Int, r *big.Int) *big.Int {
@@ -59,7 +59,7 @@ func VerifySigmaProof(t *bn254.G1Affine, e *big.Int, s *big.Int, publicKey bn254
 	return gS.Equal(&tPlusYE) // read e, t | received s
 }
 
-func GenerateSchnorrChallenge(publicKey string) (*big.Int, *big.Int) {
+func GenerateSchnorrChallenge(publicKey string) (*big.Int, *big.Int, bn254.G1Affine) {
 
 	var g bn254.G1Affine
 	g.X.SetString("1")
@@ -84,7 +84,7 @@ func GenerateSchnorrChallenge(publicKey string) (*big.Int, *big.Int) {
 	e := new(big.Int).SetBytes(h.Sum(nil))
 	e.Mod(e, bn254.ID.ScalarField()) // e needs to be stored
 
-	return e, r // send e, r
+	return e, r, R // send e, r
 }
 
 func GenerateSchnorrProof(privateKey *big.Int, e *big.Int, r *big.Int) *big.Int {

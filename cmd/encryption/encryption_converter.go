@@ -32,7 +32,7 @@ func StringToG1Affine(s string) (bn254.G1Affine, error) {
 func PublicKeyStringToBigInt(publicKey string) (*big.Int, error) {
 
 	v := new(big.Int)
-	_, success := v.SetString(publicKey, 16)
+	_, success := v.SetString(publicKey, 10)
 	if !success {
 		return nil, fmt.Errorf("failed to convert public key string to big int")
 	}

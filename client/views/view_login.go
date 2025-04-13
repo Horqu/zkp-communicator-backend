@@ -27,15 +27,15 @@ func LayoutLogin(gtx layout.Context, th *material.Theme, currentView *internal.A
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodA", "ZK-SNARK")
+					rb := material.RadioButton(th, verificationOption, "Schnorr", "Schnorr")
 					return rb.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodB", "Method B")
+					rb := material.RadioButton(th, verificationOption, "FeigeFiatShamir", "Feige-Fiat-Shamir")
 					return rb.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					rb := material.RadioButton(th, verificationOption, "methodC", "Method C")
+					rb := material.RadioButton(th, verificationOption, "Sigma", "Sigma")
 					return rb.Layout(gtx)
 				}),
 			)

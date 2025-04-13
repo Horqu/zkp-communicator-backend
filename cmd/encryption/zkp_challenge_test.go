@@ -19,19 +19,58 @@ func TestSchnorrProof(t *testing.T) {
 		t.Fatalf("Błąd generowania klucza prywatnego: %v", err)
 	}
 
+	t.Logf("Klucz prywatny: %s", x.String())
+
 	// Obliczenie klucza publicznego y = g^x
 	var y bn254.G1Affine
 	y.ScalarMultiplication(&g, x)
 
 	yString := G1AffineToString(y)
 
+	t.Logf("Klucz publiczny: %s", yString)
+
 	// Generowanie wyzwania i zobowiązania
-	e, r := GenerateSchnorrChallenge(yString)
+	e, r, R := GenerateSchnorrChallenge(yString)
 	s := GenerateSchnorrProof(x, e, r)
 
+	// // Weryfikacja dowodu
+	if !VerifySchnorrProof(R, e, s, yString) {
+		t.Errorf("Dowód Schnorra nie został zweryfikowany poprawnie")
+	} else {
+		t.Log("Dowód Schnorra zweryfikowany poprawnie")
+	}
+}
+
+func TestSchnorrProofSpecific(t *testing.T) {
+	// Generator na krzywej BN254
+	var g bn254.G1Affine
+	g.X.SetString("1")
+	g.Y.SetString("2")
+
+	// Generowanie klucza prywatnego x
+	x := "10099027144552925486150250931935288803469455528408931520761903588766227001874"
+	xBigInt, err := PublicKeyStringToBigInt(x)
+	if err != nil {
+		t.Fatalf("Błąd konwersji klucza prywatnego: %v", err)
+	}
+
+	var y bn254.G1Affine
+	y.ScalarMultiplication(&g, xBigInt)
+	t.Logf("Klucz publiczny: %s", G1AffineToString(y))
+
+	yString := "241f6a1a8e0acb84e3546466cc81a04d0d6fcd6b0319f6aa44467d77f72224f219ab9482079ff001251e582e90b4d287c75244a3a4ccae5b91be497e8e580f78"
+	// yString := G1AffineToString(y)
+
+	// Generowanie wyzwania i zobowiązania
+	e, r, R := GenerateSchnorrChallenge(yString)
+	s := GenerateSchnorrProof(xBigInt, e, r)
+
+	t.Logf("Wyzwanie e: %s", e.String())
+	t.Logf("Zobowiązanie r: %s", r.String())
+	t.Logf("Zobowiązanie R: %s", R.String())
+	t.Logf("Dowód s: %s", s.String())
+
 	// Weryfikacja dowodu
-	var R bn254.G1Affine
-	R.ScalarMultiplication(&g, r)
 	if !VerifySchnorrProof(R, e, s, yString) {
 		t.Errorf("Dowód Schnorra nie został zweryfikowany poprawnie")
 	} else {
@@ -58,7 +97,7 @@ func TestSchnorrProofFailure(t *testing.T) {
 	yString := G1AffineToString(y)
 
 	// Generowanie wyzwania i zobowiązania
-	e, r := GenerateSchnorrChallenge(yString)
+	e, r, _ := GenerateSchnorrChallenge(yString)
 	s := GenerateSchnorrProof(x, e, r)
 
 	// Celowe wprowadzenie błędu: zmodyfikowanie klucza publicznego
@@ -117,7 +156,7 @@ func TestSigmaProof(test *testing.T) {
 	publicKey.ScalarMultiplication(&g, privateKey)
 
 	// Generowanie wyzwania i zobowiązania
-	e, r := GenerateSigmaChallenge()
+	e, r, _ := GenerateSigmaChallenge()
 
 	// Obliczenie zobowiązania t = g^r
 	var t bn254.G1Affine
@@ -151,7 +190,7 @@ func TestSigmaProofFailure(test *testing.T) {
 	publicKey.ScalarMultiplication(&g, privateKey)
 
 	// Generowanie wyzwania i zobowiązania
-	e, r := GenerateSigmaChallenge()
+	e, r, _ := GenerateSigmaChallenge()
 
 	// Obliczenie zobowiązania t = g^r
 	var t bn254.G1Affine

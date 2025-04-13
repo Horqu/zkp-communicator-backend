@@ -13,6 +13,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/text"
 	"gioui.org/widget/material"
+	"github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/gorilla/websocket"
 
 	"client/encryption"
@@ -28,6 +29,20 @@ var (
 	userPublicKey           string
 	selectedFriendPublicKey string
 	decryptedMessagesGlobal []views.DecryptedMessage
+	activeChallenge         string
+
+	schnorr_E *big.Int
+	schnorr_R *big.Int
+
+	ffs_C1N        bn254.G1Affine
+	ffs_EncryptedN string
+	ffs_C1e        bn254.G1Affine
+	ffs_EncryptedE string
+
+	sigma_C1e        bn254.G1Affine
+	sigma_EncryptedE string
+	sigma_C1r        bn254.G1Affine
+	sigma_EncryptedR string
 )
 
 func main() {
@@ -61,15 +76,6 @@ func connectToWebSocket(wsURL string) error {
 	wsConn = c
 	log.Println("WebSocket connected.")
 
-	// Ustaw timer na 30 minut
-	go func() {
-		select {
-		case <-time.After(30 * time.Minute):
-			log.Println("WebSocket connection timeout reached. Closing connection.")
-			wsConn.Close()
-		}
-	}()
-
 	// Gorutyna do odbierania wiadomości
 	go func() {
 		for {
@@ -94,9 +100,65 @@ func handleMessage(msg internal.Response) {
 	case internal.ResponseRegisterSuccess:
 		log.Println("Registered successfully")
 		currentView = internal.ViewMain
-	case internal.ResponseLoginSuccess:
-		log.Println("Logged in successfully")
-		currentView = internal.ViewResolver
+
+	case internal.ResponseSchnorrChallenge:
+		log.Println("Received challenge")
+		// Rozpakowanie danych z odpowiedzi
+		var responseData struct {
+			R *big.Int `json:"R"`
+			E *big.Int `json:"E"`
+		}
+		err := json.Unmarshal([]byte(msg.Data), &responseData)
+		if err != nil {
+			log.Printf("Failed to parse ResponseSchnorrChallenge data: %v", err)
+			return
+		}
+		schnorr_E = responseData.E
+		schnorr_R = responseData.R
+
+		activeChallenge = string(internal.ResponseSchnorrChallenge)
+		currentView = internal.ViewResolverSchnorr
+
+	case internal.ResponseFFSChallenge:
+		log.Println("Received challenge")
+		// Rozpakowanie danych z odpowiedzi
+		var responseData struct {
+			C1e        bn254.G1Affine `json:"C1e"`
+			EncryptedE string         `json:"EncryptedE"`
+			C1N        bn254.G1Affine `json:"C1N"`
+			EncryptedN string         `json:"EncryptedN"`
+		}
+		err := json.Unmarshal([]byte(msg.Data), &responseData)
+		if err != nil {
+			log.Printf("Failed to parse ResponseFFSChallenge data: %v", err)
+			return
+		}
+		ffs_C1N = responseData.C1N
+		ffs_EncryptedN = responseData.EncryptedN
+		ffs_C1e = responseData.C1e
+		ffs_EncryptedE = responseData.EncryptedE
+		activeChallenge = string(internal.ResponseFFSChallenge)
+
+	case internal.ResponseSigmaChallenge:
+		log.Println("Received challenge")
+		// Rozpakowanie danych z odpowiedzi
+		var responseData struct {
+			C1e        bn254.G1Affine `json:"C1e"`
+			EncryptedE string         `json:"EncryptedE"`
+			C1r        bn254.G1Affine `json:"C1r"`
+			EncryptedR string         `json:"EncryptedR"`
+		}
+		err := json.Unmarshal([]byte(msg.Data), &responseData)
+		if err != nil {
+			log.Printf("Failed to parse ResponseSigmaChallenge data: %v", err)
+			return
+		}
+		sigma_C1e = responseData.C1e
+		sigma_EncryptedE = responseData.EncryptedE
+		sigma_C1r = responseData.C1r
+		sigma_EncryptedR = responseData.EncryptedR
+		activeChallenge = string(internal.ResponseSigmaChallenge)
+
 	case internal.ResponseSolveSuccess:
 		log.Println("Solved successfully")
 
@@ -199,6 +261,8 @@ func loop(w *app.Window) error {
 				views.LayoutLogin(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewRegister:
 				views.LayoutRegister(gtx, th, &currentView, wsConn)
+			case internal.ViewResolverSchnorr:
+				views.LayoutResolverSchnorr(gtx, th, &currentView, wsConn, &usernameLogin, schnorr_R, schnorr_E)
 			case internal.ViewResolver:
 				views.LayoutResolver(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewLoading:
