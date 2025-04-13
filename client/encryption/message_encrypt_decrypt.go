@@ -12,6 +12,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bn254"
 )
 
+var UserPrivateKey string
+
 // encryptText – szyfruje tekst przy pomocy klucza publicznego y
 // Zwraca:
 //  1. C1 = g^k (bn254.G1Affine) – punkt pomocniczy

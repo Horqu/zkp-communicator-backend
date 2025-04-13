@@ -77,14 +77,33 @@ func connectToWebSocket(wsURL string) error {
 	log.Println("WebSocket connected.")
 
 	// Gorutyna do odbierania wiadomości
+	// go func() {
+	// 	for {
+	// 		var msg internal.Response
+	// 		err := wsConn.ReadJSON(&msg)
+	// 		if err != nil {
+	// 			log.Println("Error reading message:", err)
+	// 			break
+	// 		}
+	// 		handleMessage(msg)
+	// 	}
+	// }()
 	go func() {
 		for {
-			var msg internal.Response
-			err := wsConn.ReadJSON(&msg)
+			_, message, err := wsConn.ReadMessage()
 			if err != nil {
 				log.Println("Error reading message:", err)
 				break
 			}
+
+			// Sprawdzenie, czy wiadomość jest poprawnym JSON-em
+			var msg internal.Response
+			if err := json.Unmarshal(message, &msg); err != nil {
+				log.Println("Not a Json message:", string(message))
+				continue
+			}
+
+			// Jeśli wiadomość jest poprawnym JSON-em, obsłuż ją
 			handleMessage(msg)
 		}
 	}()
@@ -123,41 +142,61 @@ func handleMessage(msg internal.Response) {
 		log.Println("Received challenge")
 		// Rozpakowanie danych z odpowiedzi
 		var responseData struct {
-			C1e        bn254.G1Affine `json:"C1e"`
-			EncryptedE string         `json:"EncryptedE"`
-			C1N        bn254.G1Affine `json:"C1N"`
-			EncryptedN string         `json:"EncryptedN"`
+			C1e        string `json:"C1e"`
+			EncryptedE string `json:"EncryptedE"`
+			C1N        string `json:"C1N"`
+			EncryptedN string `json:"EncryptedN"`
 		}
 		err := json.Unmarshal([]byte(msg.Data), &responseData)
 		if err != nil {
 			log.Printf("Failed to parse ResponseFFSChallenge data: %v", err)
 			return
 		}
-		ffs_C1N = responseData.C1N
+		ffs_C1N, err = encryption.StringToPublicKey(responseData.C1N)
+		if err != nil {
+			log.Printf("Failed to convert C1N to G1Affine: %v", err)
+			return
+		}
 		ffs_EncryptedN = responseData.EncryptedN
-		ffs_C1e = responseData.C1e
+		ffs_C1e, err = encryption.StringToPublicKey(responseData.C1e)
+		if err != nil {
+			log.Printf("Failed to convert C1e to G1Affine: %v", err)
+			return
+		}
 		ffs_EncryptedE = responseData.EncryptedE
+
 		activeChallenge = string(internal.ResponseFFSChallenge)
+		currentView = internal.ViewResolverFFS
 
 	case internal.ResponseSigmaChallenge:
 		log.Println("Received challenge")
 		// Rozpakowanie danych z odpowiedzi
 		var responseData struct {
-			C1e        bn254.G1Affine `json:"C1e"`
-			EncryptedE string         `json:"EncryptedE"`
-			C1r        bn254.G1Affine `json:"C1r"`
-			EncryptedR string         `json:"EncryptedR"`
+			C1e        string `json:"C1e"`
+			EncryptedE string `json:"EncryptedE"`
+			C1r        string `json:"C1r"`
+			EncryptedR string `json:"EncryptedR"`
 		}
 		err := json.Unmarshal([]byte(msg.Data), &responseData)
 		if err != nil {
 			log.Printf("Failed to parse ResponseSigmaChallenge data: %v", err)
 			return
 		}
-		sigma_C1e = responseData.C1e
+		sigma_C1e, err = encryption.StringToPublicKey(responseData.C1e)
+		if err != nil {
+			log.Printf("Failed to convert C1e to G1Affine: %v", err)
+			return
+		}
 		sigma_EncryptedE = responseData.EncryptedE
-		sigma_C1r = responseData.C1r
+		sigma_C1r, err = encryption.StringToPublicKey(responseData.C1r)
+		if err != nil {
+			log.Printf("Failed to convert C1r to G1Affine: %v", err)
+			return
+		}
 		sigma_EncryptedR = responseData.EncryptedR
+
 		activeChallenge = string(internal.ResponseSigmaChallenge)
+		currentView = internal.ViewResolverSigma
 
 	case internal.ResponseSolveSuccess:
 		log.Println("Solved successfully")
@@ -214,7 +253,7 @@ func handleMessage(msg internal.Response) {
 
 		var decryptedMessages []views.DecryptedMessage
 		userPrivateKeyBigInt := new(big.Int)
-		userPrivateKeyBigInt.SetString(views.UserPrivateKey, 10)
+		userPrivateKeyBigInt.SetString(encryption.UserPrivateKey, 10)
 		log.Printf("User private key: %s", userPrivateKeyBigInt)
 		for _, message := range chatMessages {
 			C1G1Affine, _ := encryption.StringToPublicKey(message.C1)
@@ -263,6 +302,10 @@ func loop(w *app.Window) error {
 				views.LayoutRegister(gtx, th, &currentView, wsConn)
 			case internal.ViewResolverSchnorr:
 				views.LayoutResolverSchnorr(gtx, th, &currentView, wsConn, &usernameLogin, schnorr_R, schnorr_E)
+			case internal.ViewResolverFFS:
+				views.LayoutResolverFFS(gtx, th, &currentView, wsConn, &usernameLogin, ffs_C1N, ffs_EncryptedN, ffs_C1e, ffs_EncryptedE)
+			// case internal.ViewResolverSigma:
+			// 	views.LayoutResolverSigma(gtx, th, &currentView, wsConn, &usernameLogin, sigma_C1e, sigma_EncryptedE, sigma_C1r, sigma_EncryptedR)
 			case internal.ViewResolver:
 				views.LayoutResolver(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewLoading:

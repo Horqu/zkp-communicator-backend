@@ -26,9 +26,9 @@ type FeigeFiatShamirChallengeToSave struct {
 }
 
 type FeigeFiatShamirChallengeToSend struct {
-	C1N        bn254.G1Affine
+	C1N        string
 	EncryptedN string
-	C1e        bn254.G1Affine
+	C1e        string
 	EncryptedE string
 }
 
@@ -39,8 +39,8 @@ type SigmaChallengeToSave struct {
 }
 
 type SigmaChallengeToSend struct {
-	C1e        bn254.G1Affine
+	C1e        string
 	EncryptedE string
-	C1r        bn254.G1Affine
+	C1r        string
 	EncryptedR string
 }

@@ -31,13 +31,14 @@ func LayoutResolverSchnorr(gtx layout.Context, th *material.Theme, currentView *
 			if resolveButtonSchnorr.Clicked(gtx) {
 				privateKey := privateKeyEditorResolverSchnorr.Text()
 				log.Printf("Wprowadzony klucz prywatny: %s\n", privateKey)
+				encryption.UserPrivateKey = privateKey
 				UserPrivateKeySchnorr = privateKey
 				UserPrivateKeySchnorrBigInt, err := encryption.StringToBigInt(privateKey)
 				if err != nil {
 					log.Printf("Failed to convert private key to big.Int: %v\n", err)
 					return layout.Dimensions{}
 				}
-				s := encryption.GenerateSchnorrProof(UserPrivateKeySchnorrBigInt, R, E)
+				s := encryption.GenerateSchnorrProof(UserPrivateKeySchnorrBigInt, E, R)
 				if wsConn != nil {
 					msg := internal.Message{
 						Command: internal.MessageSolve,

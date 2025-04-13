@@ -10,6 +10,8 @@ const (
 	ViewLogin
 	ViewResolver
 	ViewResolverSchnorr
+	ViewResolverFFS
+	ViewResolverSigma
 	ViewLogged
 	ViewLoading
 	ViewError

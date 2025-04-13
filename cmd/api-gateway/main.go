@@ -108,7 +108,6 @@ func startUserSessionChecker() {
 				}
 
 				sendJSON(conn, resp)
-				continue
 			}
 
 			err := user.WsConnection.WriteMessage(websocket.TextMessage, []byte("You are still active"))
@@ -249,10 +248,12 @@ func wsHandler(c *gin.Context) {
 
 				c1e, encryptedE := encryption.EncryptText(e.String(), &publicKeyG1Affine)
 
+				log.Printf("Generated FeigeFiatShamir challenge: N=%s, e=%s\n", N.String(), e.String())
+
 				activeFeigeFiatShamirToSend := internal.FeigeFiatShamirChallengeToSend{
-					C1N:        c1N,
+					C1N:        encryption.G1AffineToString(c1N),
 					EncryptedN: encryptedN,
-					C1e:        c1e,
+					C1e:        encryption.G1AffineToString(c1e),
 					EncryptedE: encryptedE,
 				}
 
@@ -284,9 +285,9 @@ func wsHandler(c *gin.Context) {
 				c1e, encryptedE := encryption.EncryptText(e.String(), &publicKeyG1Affine)
 				c1r, encryptedR := encryption.EncryptText(r.String(), &publicKeyG1Affine)
 				activeSigmaToSend := internal.SigmaChallengeToSend{
-					C1e:        c1e,
+					C1e:        encryption.G1AffineToString(c1e),
 					EncryptedE: encryptedE,
-					C1r:        c1r,
+					C1r:        encryption.G1AffineToString(c1r),
 					EncryptedR: encryptedR,
 				}
 				activeSigmaToSendJson, err := json.Marshal(activeSigmaToSend)
@@ -309,6 +310,7 @@ func wsHandler(c *gin.Context) {
 			var dataMap map[string]string
 			err := json.Unmarshal([]byte(message.Data), &dataMap)
 			if err != nil {
+				log.Printf("Failed to parse message data: %v\n", err)
 				conn.WriteMessage(websocket.TextMessage, []byte("Invalid data format"))
 				continue
 			}
@@ -353,6 +355,57 @@ func wsHandler(c *gin.Context) {
 				}
 				delete(activeSchnorrChallenges, username)
 				log.Printf("Schnorr proof verified for user: %s\n", username)
+			} else if method == "FeigeFiatShamir" {
+				xList := dataMap["xList"]
+				yList := dataMap["yList"]
+				v := dataMap["v"]
+
+				challenge, exists := activeFeigeFiatShamirChallenges[username]
+				if !exists {
+					log.Printf("Challenge not found for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Challenge not found"))
+					continue
+				}
+				if time.Now().After(challenge.Expiry) {
+					log.Printf("FeigeFiatShamir challenge expired for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Challenge expired"))
+					continue
+				}
+
+				xListBigInt, err := internal.JSONStringToBigIntSlice(xList)
+				if err != nil {
+					log.Printf("Failed to convert xList to big.Int slice: %v\n", err)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid xList value"))
+					continue
+				}
+
+				yListBigInt, err := internal.JSONStringToBigIntSlice(yList)
+				if err != nil {
+					log.Printf("Failed to convert yList to big.Int slice: %v\n", err)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid yList value"))
+					continue
+				}
+
+				N := challenge.N
+				e := challenge.E
+
+				vInt, err := encryption.PublicKeyStringToBigInt(v)
+				if err != nil {
+					log.Printf("Failed to convert v to big.Int: %v\n", err)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid v value"))
+					continue
+				}
+
+				log.Printf("Verifying FeigeFiatShamir proof: N=%s, e=%s, v=%s\n", N.String(), e.String(), vInt.String())
+				if !encryption.VerifyFeigeFiatShamir(xListBigInt, yListBigInt, vInt, N, e) {
+					log.Printf("FeigeFiatShamir proof verification failed for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid proof"))
+					continue
+				}
+
+				delete(activeFeigeFiatShamirChallenges, username)
+				log.Printf("FeigeFiatShamir proof verified for user: %s\n", username)
+
 			} else {
 				conn.WriteMessage(websocket.TextMessage, []byte("Invalid method"))
 				continue
