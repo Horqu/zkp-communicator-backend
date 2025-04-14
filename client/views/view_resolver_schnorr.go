@@ -39,6 +39,7 @@ func LayoutResolverSchnorr(gtx layout.Context, th *material.Theme, currentView *
 					return layout.Dimensions{}
 				}
 				s := encryption.GenerateSchnorrProof(UserPrivateKeySchnorrBigInt, E, R)
+				privateKeyEditorResolverSchnorr.SetText("") // Reset the private key editor after sending
 				if wsConn != nil {
 					msg := internal.Message{
 						Command: internal.MessageSolve,

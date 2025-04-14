@@ -104,6 +104,8 @@ func LayoutRegister(gtx layout.Context, th *material.Theme, currentView *interna
 				u := usernameEditor.Text()
 				pk := pubKeyEditor.Text()
 				log.Printf("Register user=%s with publicKey=%s\n", u, pk)
+				usernameEditor.SetText("") // Reset the username editor after sending
+				pubKeyEditor.SetText("")   // Reset the public key editor after sending
 				if wsConn != nil {
 					msg := internal.Message{
 						Command: internal.MessageRegister,

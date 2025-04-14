@@ -26,10 +26,6 @@ type DecryptedMessage struct {
 
 // Zmienne do logiki ekranu Logged
 var (
-	// Czas sesji w sekundach (2 minuty = 120s)
-	sessionTimeLeft = 120
-	lastFrameLogged time.Time
-
 	// Górny pasek
 	refreshButton = new(widget.Clickable)
 	logoutButton  = new(widget.Clickable)
@@ -58,8 +54,21 @@ var (
 	userPublicKeyGlobal     string
 )
 
+func clearLoggedVariables() {
+	friendList = []string{}
+	selectedFriend = -1
+	newFriendEditor.SetText("")
+	messageEditor.SetText("")
+	friendButtons = nil
+	chatList = widget.List{}
+	wsConnGlobal = nil
+	usernameLoginGlobal = ""
+	selectedFriendPublicKey = ""
+	userPublicKeyGlobal = ""
+}
+
 // LayoutLogged - główny ekran (chat) po zalogowaniu
-func LayoutLogged(gtx layout.Context, th *material.Theme, currentView *internal.AppView, wsConn *websocket.Conn, usernameLogin *string, contactList []internal.SimplifiedContact, userPublicKey string, friendPublicKey string, messages []DecryptedMessage) layout.Dimensions {
+func LayoutLogged(gtx layout.Context, th *material.Theme, currentView *internal.AppView, wsConn *websocket.Conn, usernameLogin *string, contactList []internal.SimplifiedContact, userPublicKey string, friendPublicKey string, messages []DecryptedMessage, resetChan *chan bool) layout.Dimensions {
 	userPublicKeyGlobal = userPublicKey
 	selectedFriendPublicKey = friendPublicKey
 	decryptedMessages = messages
@@ -69,54 +78,61 @@ func LayoutLogged(gtx layout.Context, th *material.Theme, currentView *internal.
 	for i, contact := range contactList {
 		friendList[i] = contact.Username
 	}
-	now := time.Now()
-	if !lastFrameLogged.IsZero() {
-		dt := now.Sub(lastFrameLogged).Seconds()
-		if dt >= 1 {
-			// Zliczaj pełne sekundy
-			secondsPassed := int(dt)
-			sessionTimeLeft -= secondsPassed
-			if sessionTimeLeft < 0 {
-				sessionTimeLeft = 0
-			}
-		}
-	}
-	lastFrameLogged = now
 
 	// Układ pionowy (top bar, środek, bottom bar)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Górny pasek
-			return layoutTopBar(gtx, th, currentView)
+			return layoutTopBar(gtx, th, currentView, resetChan)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			// Środek aplikacji
-			return layoutMiddle(gtx, th)
+			return layoutMiddle(gtx, th, resetChan)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Dolny pasek
-			return layoutBottomBar(gtx, th)
+			return layoutBottomBar(gtx, th, resetChan)
 		}),
 	)
 }
 
 // layoutTopBar tworzy pasek z "session time left", przyciskiem Refresh i Logout
-func layoutTopBar(gtx layout.Context, th *material.Theme, currentView *internal.AppView) layout.Dimensions {
+func layoutTopBar(gtx layout.Context, th *material.Theme, currentView *internal.AppView, resetChan *chan bool) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// Sesja - format "mm:ss"
+			sessionTimeLeft := internal.GetSessionTimeLeft()
 			minutes := sessionTimeLeft / 60
 			seconds := sessionTimeLeft % 60
-			sessionLabel := material.Label(th, unit.Sp(16), fmt.Sprintf("Session time left: %d:%02d", minutes, seconds))
-			sessionLabel.Alignment = text.Start
-			sessionLabel.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
-			return sessionLabel.Layout(gtx)
+			sessionLabel := material.Label(th, unit.Sp(20), fmt.Sprintf("Session time left: %02d:%02d", minutes, seconds))
+			sessionLabel.Alignment = text.Middle
+			sessionLabel.Color = color.NRGBA{R: 0xFF, G: 0x00, B: 0x00, A: 0xFF} // Czerwony kolor dla lepszej widoczności
+			return layout.Inset{
+				Top:    unit.Dp(8),
+				Bottom: unit.Dp(8),
+				Left:   unit.Dp(16),
+				Right:  unit.Dp(16),
+			}.Layout(gtx, sessionLabel.Layout)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Przycisk Refresh
 			btn := material.Button(th, refreshButton, "Refresh")
 			if refreshButton.Clicked(gtx) {
-				// Tu można odświeżyć listę znajomych, wiadomości, etc.
+				*resetChan <- true
+				// Wysyłanie wiadomości MessageRefresh do serwera
+				if wsConnGlobal != nil {
+					msg := internal.Message{
+						Command: internal.MessageRefresh,
+						Data:    fmt.Sprintf(`{"username":"%s"}`, usernameLoginGlobal),
+					}
+					err := wsConnGlobal.WriteJSON(msg)
+					if err != nil {
+						log.Printf("Failed to send refresh message: %v\n", err)
+					} else {
+						log.Printf("Sent refresh message for user: %s\n", usernameLoginGlobal)
+					}
+				} else {
+					log.Println("WebSocket connection is not established.")
+				}
 			}
 			return btn.Layout(gtx)
 		}),
@@ -124,9 +140,22 @@ func layoutTopBar(gtx layout.Context, th *material.Theme, currentView *internal.
 			// Przycisk Logout
 			btn := material.Button(th, logoutButton, "Logout")
 			if logoutButton.Clicked(gtx) {
+				*resetChan <- true
+
+				// Rozłącz WebSocket
+				if wsConnGlobal != nil {
+					err := wsConnGlobal.Close()
+					if err != nil {
+						log.Printf("Failed to close WebSocket connection: %v\n", err)
+					} else {
+						log.Println("WebSocket connection closed successfully.")
+					}
+					wsConnGlobal = nil // Wyzeruj wsConnGlobal, aby wskazywał na brak połączenia
+				}
+				clearLoggedVariables()
 				// Powrót do ekranu logowania
-				*currentView = internal.ViewMain
-				sessionTimeLeft = 120 // resetujemy ewentualnie czas sesji
+				*currentView = internal.ViewLogout
+
 			}
 			return btn.Layout(gtx)
 		}),
@@ -134,11 +163,11 @@ func layoutTopBar(gtx layout.Context, th *material.Theme, currentView *internal.
 }
 
 // layoutMiddle - środkowa część aplikacji: lista znajomych (lewa) i chat z wybranym znajomym (prawa)
-func layoutMiddle(gtx layout.Context, th *material.Theme) layout.Dimensions {
+func layoutMiddle(gtx layout.Context, th *material.Theme, resetChan *chan bool) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Lista znajomych, pionowo
-			return layoutFriendsList(gtx, th)
+			return layoutFriendsList(gtx, th, resetChan)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			// Chat z aktualnie zaznaczonym znajomym
@@ -147,7 +176,7 @@ func layoutMiddle(gtx layout.Context, th *material.Theme) layout.Dimensions {
 	)
 }
 
-func layoutFriendsList(gtx layout.Context, th *material.Theme) layout.Dimensions {
+func layoutFriendsList(gtx layout.Context, th *material.Theme, resetChan *chan bool) layout.Dimensions {
 	// Jeśli friendButtons jest puste lub długość się nie zgadza, inicjalizujemy ponownie
 	if len(friendButtons) != len(friendList) {
 		friendButtons = make([]*widget.Clickable, len(friendList))
@@ -157,11 +186,11 @@ func layoutFriendsList(gtx layout.Context, th *material.Theme) layout.Dimensions
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		friendItems(gtx, th)...,
+		friendItems(gtx, th, resetChan)...,
 	)
 }
 
-func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
+func friendItems(gtx layout.Context, th *material.Theme, resetChan *chan bool) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, friend := range friendList {
 		index := i
@@ -170,6 +199,7 @@ func friendItems(gtx layout.Context, th *material.Theme) []layout.FlexChild {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			item := material.Button(th, button, friend)
 			if button.Clicked(gtx) {
+				*resetChan <- true
 				log.Printf("Selected friend: %s\n", friend)
 				selectedFriend = index
 				friendName := friendList[selectedFriend]
@@ -277,7 +307,7 @@ func layoutChat(gtx layout.Context, th *material.Theme) layout.Dimensions {
 }
 
 // layoutBottomBar - pole do wpisania nowego znajomego i wiadomości
-func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
+func layoutBottomBar(gtx layout.Context, th *material.Theme, resetChan *chan bool) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceAround}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Pole do wpisania nowego znajomego
@@ -289,6 +319,7 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			// Przycisk "Add friend"
 			btn := material.Button(th, addFriendButton, "Add")
 			if addFriendButton.Clicked(gtx) {
+				*resetChan <- true
 				// Dodaj znajomego do listy
 				name := newFriendEditor.Text()
 				if name != "" {
@@ -325,6 +356,7 @@ func layoutBottomBar(gtx layout.Context, th *material.Theme) layout.Dimensions {
 			// Przycisk "Send" do aktualnie wybranego znajomego
 			btn := material.Button(th, sendMessageButton, "Send")
 			if sendMessageButton.Clicked(gtx) {
+				*resetChan <- true
 				if selectedFriend >= 0 && selectedFriend < len(friendList) {
 					msgText := messageEditor.Text()
 					friendUsername := friendList[selectedFriend]

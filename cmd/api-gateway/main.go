@@ -355,6 +355,7 @@ func wsHandler(c *gin.Context) {
 				}
 				delete(activeSchnorrChallenges, username)
 				log.Printf("Schnorr proof verified for user: %s\n", username)
+
 			} else if method == "FeigeFiatShamir" {
 				xList := dataMap["xList"]
 				yList := dataMap["yList"]
@@ -366,6 +367,7 @@ func wsHandler(c *gin.Context) {
 					conn.WriteMessage(websocket.TextMessage, []byte("Challenge not found"))
 					continue
 				}
+
 				if time.Now().After(challenge.Expiry) {
 					log.Printf("FeigeFiatShamir challenge expired for user: %s\n", username)
 					conn.WriteMessage(websocket.TextMessage, []byte("Challenge expired"))
@@ -405,6 +407,48 @@ func wsHandler(c *gin.Context) {
 
 				delete(activeFeigeFiatShamirChallenges, username)
 				log.Printf("FeigeFiatShamir proof verified for user: %s\n", username)
+
+			} else if method == "Sigma" {
+				s := dataMap["s"]
+
+				challenge, exists := activeSigmaChallenges[username]
+				if !exists {
+					log.Printf("Challenge not found for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Challenge not found"))
+					continue
+				}
+
+				if time.Now().After(challenge.Expiry) {
+					log.Printf("Sigma challenge expired for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Challenge expired"))
+					continue
+				}
+
+				sInt, err := encryption.PublicKeyStringToBigInt(s)
+				if err != nil {
+					log.Printf("Failed to convert s to big.Int: %v\n", err)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid s value"))
+					continue
+				}
+
+				t := challenge.T
+				e := challenge.E
+
+				publicKeyG1Affine, err := encryption.StringToG1Affine(publicKey)
+				if err != nil {
+					log.Printf("Failed to convert public key: %v\n", err)
+					conn.WriteMessage(websocket.TextMessage, []byte("Failed to convert public key"))
+					continue
+				}
+
+				if !encryption.VerifySigmaProof(&t, e, sInt, publicKeyG1Affine) {
+					log.Printf("Sigma proof verification failed for user: %s\n", username)
+					conn.WriteMessage(websocket.TextMessage, []byte("Invalid proof"))
+					continue
+				}
+
+				delete(activeSigmaChallenges, username)
+				log.Printf("Sigma proof verified for user: %s\n", username)
 
 			} else {
 				conn.WriteMessage(websocket.TextMessage, []byte("Invalid method"))
@@ -658,7 +702,7 @@ func wsHandler(c *gin.Context) {
 
 			sendJSON(conn, resp)
 
-		case "ping":
+		case internal.MessageRefresh:
 
 			var dataMap map[string]string
 			err := json.Unmarshal([]byte(message.Data), &dataMap)
@@ -692,6 +736,8 @@ func wsHandler(c *gin.Context) {
 				conn.WriteMessage(websocket.TextMessage, []byte("Failed to get contacts"))
 				continue
 			}
+
+			log.Printf("Refreshing friend list for user: %s\n", username)
 
 			resp := wsresponses.ResponseSolveSuccess(activeUsers[username].PublicKey, friendList)
 			sendJSON(conn, resp)

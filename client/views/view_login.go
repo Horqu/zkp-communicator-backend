@@ -47,6 +47,7 @@ func LayoutLogin(gtx layout.Context, th *material.Theme, currentView *internal.A
 				login := loginEditor.Text()
 				method := verificationOption.Value
 				log.Printf("Sending data: login=%s, method=%s\n", login, method)
+				loginEditor.SetText("") // Reset the login editor after sending
 				if wsConn != nil {
 					msg := internal.Message{
 						Command: internal.MessageLogin,

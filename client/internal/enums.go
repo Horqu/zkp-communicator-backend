@@ -15,6 +15,7 @@ const (
 	ViewLogged
 	ViewLoading
 	ViewError
+	ViewLogout
 )
 const (
 	MessageLoginButtom    MessageCommand = "login_buttom"

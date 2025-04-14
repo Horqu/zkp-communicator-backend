@@ -29,7 +29,6 @@ var (
 	userPublicKey           string
 	selectedFriendPublicKey string
 	decryptedMessagesGlobal []views.DecryptedMessage
-	activeChallenge         string
 
 	schnorr_E *big.Int
 	schnorr_R *big.Int
@@ -43,14 +42,34 @@ var (
 	sigma_EncryptedE string
 	sigma_C1r        bn254.G1Affine
 	sigma_EncryptedR string
+
+	ResetChan chan bool
 )
+
+func clearClientVariables() {
+	usernameLogin = ""
+	friendList = nil
+	userPublicKey = ""
+	selectedFriendPublicKey = ""
+	decryptedMessagesGlobal = nil
+
+	schnorr_E = nil
+	schnorr_R = nil
+
+	ffs_C1N = bn254.G1Affine{}
+	ffs_EncryptedN = ""
+	ffs_C1e = bn254.G1Affine{}
+	ffs_EncryptedE = ""
+
+	sigma_C1e = bn254.G1Affine{}
+	sigma_EncryptedE = ""
+	sigma_C1r = bn254.G1Affine{}
+	sigma_EncryptedR = ""
+
+}
 
 func main() {
 	go func() {
-
-		if err := connectToWebSocket("ws://localhost:8080/ws"); err != nil {
-			log.Println("WebSocket connection error:", err)
-		}
 
 		w := new(app.Window)
 		if err := loop(w); err != nil {
@@ -58,10 +77,19 @@ func main() {
 		}
 		os.Exit(0)
 	}()
+
+	ResetChan = make(chan bool)
+	go internal.StartSessionTimer(ResetChan)
+
 	app.Main()
 }
 
 func connectToWebSocket(wsURL string) error {
+	if wsConn != nil {
+		log.Println("WebSocket is already connected.")
+		return nil
+	}
+
 	u, err := url.Parse(wsURL)
 	if err != nil {
 		return err
@@ -76,18 +104,6 @@ func connectToWebSocket(wsURL string) error {
 	wsConn = c
 	log.Println("WebSocket connected.")
 
-	// Gorutyna do odbierania wiadomości
-	// go func() {
-	// 	for {
-	// 		var msg internal.Response
-	// 		err := wsConn.ReadJSON(&msg)
-	// 		if err != nil {
-	// 			log.Println("Error reading message:", err)
-	// 			break
-	// 		}
-	// 		handleMessage(msg)
-	// 	}
-	// }()
 	go func() {
 		for {
 			_, message, err := wsConn.ReadMessage()
@@ -96,14 +112,12 @@ func connectToWebSocket(wsURL string) error {
 				break
 			}
 
-			// Sprawdzenie, czy wiadomość jest poprawnym JSON-em
 			var msg internal.Response
 			if err := json.Unmarshal(message, &msg); err != nil {
 				log.Println("Not a Json message:", string(message))
 				continue
 			}
 
-			// Jeśli wiadomość jest poprawnym JSON-em, obsłuż ją
 			handleMessage(msg)
 		}
 	}()
@@ -135,7 +149,6 @@ func handleMessage(msg internal.Response) {
 		schnorr_E = responseData.E
 		schnorr_R = responseData.R
 
-		activeChallenge = string(internal.ResponseSchnorrChallenge)
 		currentView = internal.ViewResolverSchnorr
 
 	case internal.ResponseFFSChallenge:
@@ -165,7 +178,6 @@ func handleMessage(msg internal.Response) {
 		}
 		ffs_EncryptedE = responseData.EncryptedE
 
-		activeChallenge = string(internal.ResponseFFSChallenge)
 		currentView = internal.ViewResolverFFS
 
 	case internal.ResponseSigmaChallenge:
@@ -195,11 +207,11 @@ func handleMessage(msg internal.Response) {
 		}
 		sigma_EncryptedR = responseData.EncryptedR
 
-		activeChallenge = string(internal.ResponseSigmaChallenge)
 		currentView = internal.ViewResolverSigma
 
 	case internal.ResponseSolveSuccess:
 		log.Println("Solved successfully")
+		ResetChan <- true
 
 		// Rozpakowanie kontaktów z odpowiedzi
 		var responseData struct {
@@ -280,6 +292,18 @@ func handleMessage(msg internal.Response) {
 	}
 }
 
+func closeWebSocket() {
+	if wsConn != nil {
+		err := wsConn.Close()
+		if err != nil {
+			log.Printf("Failed to close WebSocket connection: %v\n", err)
+		} else {
+			log.Println("WebSocket connection closed successfully.")
+		}
+		wsConn = nil
+	}
+}
+
 func loop(w *app.Window) error {
 	th := material.NewTheme()
 	th.Shaper = text.NewShaper(text.WithCollection(gofont.Collection()))
@@ -288,6 +312,7 @@ func loop(w *app.Window) error {
 	for {
 		switch e := w.Event().(type) {
 		case app.DestroyEvent:
+			closeWebSocket()
 			return e.Err
 
 		case app.FrameEvent:
@@ -296,16 +321,25 @@ func loop(w *app.Window) error {
 			switch currentView {
 			case internal.ViewMain:
 				views.LayoutMain(gtx, th, &currentView)
-			case internal.ViewLogin:
-				views.LayoutLogin(gtx, th, &currentView, wsConn, &usernameLogin)
-			case internal.ViewRegister:
-				views.LayoutRegister(gtx, th, &currentView, wsConn)
+			case internal.ViewLogin, internal.ViewRegister:
+				// Połącz z WebSocket, jeśli jeszcze nie jest połączony
+				if wsConn == nil {
+					err := connectToWebSocket("ws://localhost:8080/ws")
+					if err != nil {
+						log.Printf("Failed to connect to WebSocket: %v\n", err)
+					}
+				}
+				if currentView == internal.ViewLogin {
+					views.LayoutLogin(gtx, th, &currentView, wsConn, &usernameLogin)
+				} else {
+					views.LayoutRegister(gtx, th, &currentView, wsConn)
+				}
 			case internal.ViewResolverSchnorr:
 				views.LayoutResolverSchnorr(gtx, th, &currentView, wsConn, &usernameLogin, schnorr_R, schnorr_E)
 			case internal.ViewResolverFFS:
 				views.LayoutResolverFFS(gtx, th, &currentView, wsConn, &usernameLogin, ffs_C1N, ffs_EncryptedN, ffs_C1e, ffs_EncryptedE)
-			// case internal.ViewResolverSigma:
-			// 	views.LayoutResolverSigma(gtx, th, &currentView, wsConn, &usernameLogin, sigma_C1e, sigma_EncryptedE, sigma_C1r, sigma_EncryptedR)
+			case internal.ViewResolverSigma:
+				views.LayoutResolverSigma(gtx, th, &currentView, wsConn, &usernameLogin, sigma_C1e, sigma_EncryptedE, sigma_C1r, sigma_EncryptedR)
 			case internal.ViewResolver:
 				views.LayoutResolver(gtx, th, &currentView, wsConn, &usernameLogin)
 			case internal.ViewLoading:
@@ -313,7 +347,15 @@ func loop(w *app.Window) error {
 			case internal.ViewError:
 				views.LayoutError(gtx, th, &currentView)
 			case internal.ViewLogged:
-				views.LayoutLogged(gtx, th, &currentView, wsConn, &usernameLogin, friendList, userPublicKey, selectedFriendPublicKey, decryptedMessagesGlobal)
+				if internal.GetSessionTimeLeft() <= 0 {
+					log.Println("Session expired")
+					currentView = internal.ViewLogout
+				}
+				views.LayoutLogged(gtx, th, &currentView, wsConn, &usernameLogin, friendList, userPublicKey, selectedFriendPublicKey, decryptedMessagesGlobal, &ResetChan)
+			case internal.ViewLogout:
+				currentView = internal.ViewMain
+				closeWebSocket()
+				clearClientVariables()
 			}
 
 			e.Frame(gtx.Ops)
