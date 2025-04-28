@@ -15,6 +15,9 @@ import (
 	// "github.com/Horqu/zkp-communicator-backend/cmd/encryption"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -28,7 +31,57 @@ var (
 	activeSchnorrChallenges         = map[string]internal.SchnorrChallengeToSave{}
 	activeFeigeFiatShamirChallenges = map[string]internal.FeigeFiatShamirChallengeToSave{}
 	activeSigmaChallenges           = map[string]internal.SigmaChallengeToSave{}
+
+	// Licznik otrzymanych wiadomości WebSocket
+	websocketMessagesReceived = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "websocket_messages_received_total",
+			Help: "Total number of WebSocket messages received",
+		},
+		[]string{"command"},
+	)
+
+	// Rozmiar mapy aktywnych użytkowników
+	activeUsersGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_users_total",
+			Help: "Number of active users",
+		},
+	)
+
+	// Rozmiar mapy aktywnych wyzwań Schnorr
+	activeSchnorrChallengesGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_schnorr_challenges_total",
+			Help: "Number of active Schnorr challenges",
+		},
+	)
+
+	// Rozmiar mapy aktywnych wyzwań Feige-Fiat-Shamir
+	activeFeigeFiatShamirChallengesGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_feige_fiat_shamir_challenges_total",
+			Help: "Number of active Feige-Fiat-Shamir challenges",
+		},
+	)
+
+	// Rozmiar mapy aktywnych wyzwań Sigma
+	activeSigmaChallengesGauge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "active_sigma_challenges_total",
+			Help: "Number of active Sigma challenges",
+		},
+	)
 )
+
+func init() {
+	// Rejestracja metryk w Prometheus
+	prometheus.MustRegister(websocketMessagesReceived)
+	prometheus.MustRegister(activeUsersGauge)
+	prometheus.MustRegister(activeSchnorrChallengesGauge)
+	prometheus.MustRegister(activeFeigeFiatShamirChallengesGauge)
+	prometheus.MustRegister(activeSigmaChallengesGauge)
+}
 
 func startUserSessionChecker() {
 	ticker := time.NewTicker(1 * time.Second) // Timer, który działa co sekundę
@@ -37,6 +90,18 @@ func startUserSessionChecker() {
 	for {
 		<-ticker.C
 		now := time.Now()
+
+		// Aktualizuj liczbę aktywnych użytkowników
+		activeUsersGauge.Set(float64(len(activeUsers)))
+
+		// Aktualizuj liczbę aktywnych wyzwań Schnorr
+		activeSchnorrChallengesGauge.Set(float64(len(activeSchnorrChallenges)))
+
+		// Aktualizuj liczbę aktywnych wyzwań Feige-Fiat-Shamir
+		activeFeigeFiatShamirChallengesGauge.Set(float64(len(activeFeigeFiatShamirChallenges)))
+
+		// Aktualizuj liczbę aktywnych wyzwań Sigma
+		activeSigmaChallengesGauge.Set(float64(len(activeSigmaChallenges)))
 
 		for username, user := range activeUsers {
 			// Sprawdź, czy czas sesji użytkownika minął
@@ -158,6 +223,8 @@ func wsHandler(c *gin.Context) {
 			conn.WriteMessage(websocket.TextMessage, []byte("Invalid message format"))
 			continue
 		}
+
+		websocketMessagesReceived.WithLabelValues(string(message.Command)).Inc()
 
 		switch message.Command {
 		case internal.MessageLoginButtom:
@@ -758,9 +825,13 @@ func main() {
 
 	go startUserSessionChecker()
 
+	gin.SetMode(gin.ReleaseMode)
+
 	router := gin.Default()
 
 	router.GET("/ws", wsHandler)
+
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	router.Run(":8080")
 }
