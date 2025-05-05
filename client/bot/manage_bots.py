@@ -89,7 +89,7 @@ def main():
     # Uruchom N botów w osobnych wątkach
     threads = []
     for i in range(N):
-        log_file = os.path.join(log_dir, f"login-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}-bot-{i+1}.log")
+        log_file = os.path.join(log_dir, f"manage-bots-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}-bot-{i+1}.log")
         
         thread = threading.Thread(target=run_bot, args=(i + 1, log_file, login_method, disconnect_time))
         threads.append(thread)

@@ -324,7 +324,7 @@ func loop(w *app.Window) error {
 			case internal.ViewLogin, internal.ViewRegister:
 				// Połącz z WebSocket, jeśli jeszcze nie jest połączony
 				if wsConn == nil {
-					err := connectToWebSocket("ws://localhost:8080/ws")
+					err := connectToWebSocket("ws://192.168.0.130:8080/ws")
 					if err != nil {
 						log.Printf("Failed to connect to WebSocket: %v\n", err)
 					}

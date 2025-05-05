@@ -21,7 +21,7 @@ import (
 var LOGIN_ONLY = false
 
 func registerFlow() {
-	serverURL := "ws://localhost:8080/ws"
+	serverURL := "ws://192.168.0.130:8080/ws"
 
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL, nil)
 	if err != nil {
@@ -97,7 +97,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 	}
 	go func() {
 		<-time.After(time.Duration(disconnectMinutes) * time.Minute)
-		log.Println("10 minutes have passed. Exiting bot.")
+		log.Printf("%s minutes have passed. Exiting bot.\n", disconnectTime)
 		os.Exit(0) // Wymuś zakończenie programu
 	}()
 
@@ -134,7 +134,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 	username = credential.Username
 	usernamePrivateKey = credential.PrivateKey
 
-	serverURL := "ws://localhost:8080/ws"
+	serverURL := "ws://192.168.0.130:8080/ws"
 
 	conn, _, err := websocket.DefaultDialer.Dial(serverURL, nil)
 	if err != nil {
@@ -455,7 +455,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 		default:
 			time.Sleep(time.Duration(100) * time.Millisecond)
 			if loggedIn {
-				time.Sleep(time.Duration(5+rand.Intn(55)) * time.Second) // 5-60s to perform action
+				time.Sleep(time.Duration(2+rand.Intn(8)) * time.Second) // 5-20s to perform action | 2-10s
 				randomValue := rand.Intn(100)
 
 				switch {
@@ -524,7 +524,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 						log.Println("No friend selected to send a message.")
 					}
 
-				case randomValue < 95: // 20% szansa na "select friend"
+				case randomValue < 99: // 24% szansa na "select friend"
 					log.Println("Performing action: Select Friend")
 					if len(friendList) > 0 {
 						friend := friendList[rand.Intn(len(friendList))]
@@ -541,7 +541,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 						log.Println("No friends available to select.")
 					}
 
-				default: // 5% szansa na "logout"
+				default: // 1% szansa na "logout"
 					log.Println("Performing action: Logout")
 					if conn != nil {
 						err := conn.Close()
