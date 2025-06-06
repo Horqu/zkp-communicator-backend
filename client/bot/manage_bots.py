@@ -46,11 +46,11 @@ def run_bot(bot_id, log_file, login_method, disconnect_time):
             )
 
             # Zapisz wynik do logu
-            with open(log_file, "a") as log:
-                log.write(f"[{datetime.now()}] Bot-{bot_id}:\n")
-                log.write(result.stdout)
-                log.write(result.stderr)
-                log.write("\n")
+            # with open(log_file, "a") as log:
+            #     log.write(f"[{datetime.now()}] Bot-{bot_id}:\n")
+            #     log.write(result.stdout)
+            #     log.write(result.stderr)
+            #     log.write("\n")
             
             logging.info(f"Bot-{bot_id} zakończył działanie. Wynik zapisany do logu.")
         except Exception as e:
@@ -89,6 +89,7 @@ def main():
     # Uruchom N botów w osobnych wątkach
     threads = []
     for i in range(N):
+        time.sleep(0.5)  # Opóźnienie między uruchomieniem botów
         log_file = os.path.join(log_dir, f"manage-bots-{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}-bot-{i+1}.log")
         
         thread = threading.Thread(target=run_bot, args=(i + 1, log_file, login_method, disconnect_time))

@@ -3,6 +3,7 @@
 *.out
 *.tmp
 *.pid
+*.log.*
 
 # Compiled files
 *.exe
@@ -58,3 +59,4 @@ test-results/
 # Temporary files and directories
 tmp/
 .cache/
+

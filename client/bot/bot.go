@@ -19,6 +19,7 @@ import (
 )
 
 var LOGIN_ONLY = false
+var UNAUTHORIZED_ATTEMPT = false
 
 func registerFlow() {
 	serverURL := "ws://192.168.0.130:8080/ws"
@@ -102,6 +103,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 	}()
 
 	var loggedIn bool
+	loginMethodArgument := loginMethod
 	loginMethod = botutils.GetLoginMethod(loginMethod)
 
 	var username string
@@ -127,12 +129,33 @@ func loginFlow(loginMethod string, disconnectTime string) {
 	var sigma_EncryptedR string
 
 	filePath := "bot_credentials.json"
-	credential, err := botutils.LoadRandomBotCredential(filePath)
-	if err != nil {
-		log.Fatalf("Failed to load random bot credential: %v", err)
+
+	if !UNAUTHORIZED_ATTEMPT {
+		credential, err := botutils.LoadRandomBotCredential(filePath)
+		if err != nil {
+			log.Fatalf("Failed to load random bot credential: %v", err)
+		}
+		username = credential.Username
+		usernamePrivateKey = credential.PrivateKey
 	}
-	username = credential.Username
-	usernamePrivateKey = credential.PrivateKey
+
+	if UNAUTHORIZED_ATTEMPT {
+		switch loginMethodArgument {
+		case "Schnorr":
+			log.Println("Unauthorized attempt with Schnorr method")
+			username = "bot-dygjhnnstfinumi9"
+		case "FeigeFiatShamir":
+			log.Println("Unauthorized attempt with FeigeFiatShamir method")
+			username = "bot-q4t63u59apnyjydb"
+		case "Sigma":
+			log.Println("Unauthorized attempt with Sigma method")
+			username = "bot-aoyahtdm1ynix6nn"
+		default:
+			log.Println("Unauthorized attempt with random method")
+			username = "bot-mc78rkaesn23xn72"
+		}
+		usernamePrivateKey = encryption.GeneratePrivateKey().String()
+	}
 
 	serverURL := "ws://192.168.0.130:8080/ws"
 
@@ -152,12 +175,20 @@ func loginFlow(loginMethod string, disconnectTime string) {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
 				log.Printf("Error reading message: %v", err)
+				os.Exit(0)
 				connectionClosedChan <- true
 				return
 			}
 
+			if string(message) == "Invalid proof" && UNAUTHORIZED_ATTEMPT {
+				log.Println("Received 'Invalid proof' message from server. Test passed.")
+				os.Exit(0)
+				continue
+			}
+
 			var msg internal.Response
 			if err := json.Unmarshal(message, &msg); err != nil {
+
 				continue
 			}
 
@@ -354,6 +385,9 @@ func loginFlow(loginMethod string, disconnectTime string) {
 			case internal.ResponseSolveSuccess:
 				if LOGIN_ONLY {
 					log.Println("Login successful, exiting.")
+					if UNAUTHORIZED_ATTEMPT {
+						log.Println("Unauthorized attempt detected. Exiting.")
+					}
 					if conn != nil {
 						err := conn.Close()
 						if err != nil {
@@ -552,6 +586,7 @@ func loginFlow(loginMethod string, disconnectTime string) {
 						}
 						conn = nil
 					}
+					os.Exit(0) // Wymuś zakończenie programu
 				}
 			}
 		}
@@ -565,7 +600,7 @@ func main() {
 	var disconnectTime string
 
 	if len(os.Args) < 2 {
-		log.Fatal("Usage: go run bot.go <login|register> <loginMethod> <disconnectTime> <SetLoginOnly>")
+		log.Fatal("Usage: go run bot.go <login|register> <loginMethod> <disconnectTime> <SetLoginOnly> <SetUnauthorizedAttempt>")
 	}
 
 	if len(os.Args) > 2 {
@@ -582,6 +617,10 @@ func main() {
 
 	if len(os.Args) > 4 {
 		LOGIN_ONLY = true
+	}
+
+	if len(os.Args) > 5 {
+		UNAUTHORIZED_ATTEMPT = true
 	}
 
 	action := os.Args[1]
